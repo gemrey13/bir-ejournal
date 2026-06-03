@@ -27,6 +27,13 @@ function getDb(): Database.Database {
   return db
 }
 
+type MonthYear = { year: number; month: number }
+
+type ScanFilters = {
+  from?: string
+  to?: string
+}
+
 function parseInnerZip(name: string): { month: number; year: number } | null {
   // OR202506.zip → year=2025, month=06
   const match = path
@@ -37,7 +44,38 @@ function parseInnerZip(name: string): { month: number; year: number } | null {
   return { year: parseInt(match[1], 10), month: parseInt(match[2], 10) }
 }
 
-export async function scanAndSave(branchPath: string): Promise<{ inserted: number; skipped: number }> {
+function parseMonthYear(value?: string): MonthYear | null {
+  if (!value) return null
+  const match = value.match(/^(\d{4})-(0[1-9]|1[0-2])$/)
+  if (!match) return null
+  return { year: parseInt(match[1], 10), month: parseInt(match[2], 10) }
+}
+
+function monthYearValue(date: MonthYear): number {
+  return date.year * 100 + date.month
+}
+
+function isMonthYearInRange(date: MonthYear, from: MonthYear | null, to: MonthYear | null): boolean {
+  const value = monthYearValue(date)
+  if (from && value < monthYearValue(from)) return false
+  if (to && value > monthYearValue(to)) return false
+  return true
+}
+
+export async function scanAndSave(branchPath: string, filters?: ScanFilters): Promise<{ inserted: number; skipped: number }> {
+  const fromDate = parseMonthYear(filters?.from)
+  const toDate = parseMonthYear(filters?.to)
+
+  if (filters?.from && !fromDate) {
+    throw new Error('Invalid "from" date format. Use YYYY-MM.')
+  }
+  if (filters?.to && !toDate) {
+    throw new Error('Invalid "to" date format. Use YYYY-MM.')
+  }
+  if (fromDate && toDate && monthYearValue(fromDate) > monthYearValue(toDate)) {
+    throw new Error('The "from" date must be earlier than or equal to the "to" date.')
+  }
+
   const database = getDb()
   const insert = database.prepare(`
     INSERT OR IGNORE INTO or_records (branch, filename, month, year)
@@ -54,6 +92,10 @@ export async function scanAndSave(branchPath: string): Promise<{ inserted: numbe
   try {
     for (const yearFolder of fs.readdirSync(branchPath)) {
       if (!/^\d{4}$/.test(yearFolder)) continue
+      const yearNumber = parseInt(yearFolder, 10)
+      if (fromDate && yearNumber < fromDate.year) continue
+      if (toDate && yearNumber > toDate.year) continue
+
       const yearPath = path.join(branchPath, yearFolder)
       if (!fs.statSync(yearPath).isDirectory()) continue
 
@@ -73,6 +115,7 @@ export async function scanAndSave(branchPath: string): Promise<{ inserted: numbe
 
           const info = parseInnerZip(entry.entryName)
           if (!info) continue
+          if (!isMonthYearInRange(info, fromDate, toDate)) continue
 
           const tmpZip = path.join(tmpDir, `${branch}_${path.basename(entry.entryName)}`)
           const outerBuf: Buffer = (entry as any).getData(OR_ZIP_PASSWORD)

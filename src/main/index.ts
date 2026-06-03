@@ -50,8 +50,8 @@ ipcMain.handle('dialog:openDirectory', async (_) => {
   return filePaths[0] // Sends the native Windows path back to React
 })
 
- ipcMain.handle('scan', async (_event, rootPath: string) => {
-    return scanAndSave(rootPath);
+ ipcMain.handle('scan', async (_event, rootPath: string, filters?: { from?: string; to?: string }) => {
+    return scanAndSave(rootPath, filters);
   });
 
 app.whenReady().then(() => {

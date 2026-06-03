@@ -5,7 +5,7 @@ declare global {
     electron: ElectronAPI
     api: {
       selectDirectory: () => Promise<string | null>
-      scan(rootPath: string): Promise<{ inserted: number; skipped: number }>
+      scan(rootPath: string, filters?: { from?: string; to?: string }): Promise<{ inserted: number; skipped: number }>
     }
   }
 }

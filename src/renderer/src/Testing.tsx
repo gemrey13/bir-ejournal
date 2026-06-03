@@ -2,6 +2,8 @@ import { useState } from 'react'
 
 export default function Testing() {
   const [rootPath, setRootPath] = useState('')
+  const [fromDate, setFromDate] = useState('') // Format: "YYYY-MM"
+  const [toDate, setToDate] = useState('') // Format: "YYYY-MM"
   const [status, setStatus] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -10,7 +12,13 @@ export default function Testing() {
     setLoading(true)
     setStatus(null)
     try {
-      const result = await window.api.scan(rootPath.trim())
+      const result = await window.api.scan(rootPath.trim(), {
+        from: fromDate || undefined,
+        to: toDate || undefined
+      })
+
+      console.log('Scan fromDate:', fromDate)
+      console.log('Scan toDate:', toDate)
       setStatus(`Done — inserted: ${result.inserted}, duplicates skipped: ${result.skipped}`)
     } catch (e) {
       setStatus(`Error: ${e}`)
@@ -53,6 +61,40 @@ export default function Testing() {
         >
           {loading ? 'Scanning…' : 'Scan'}
         </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563' }}>From Month</label>
+          <input
+            type="month"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            style={{
+              padding: '6px 10px',
+              fontSize: 13,
+              borderRadius: 6,
+              border: '1px solid #ccc',
+              fontFamily: 'inherit'
+            }}
+          />
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563' }}>To Month</label>
+          <input
+            type="month"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            style={{
+              padding: '6px 10px',
+              fontSize: 13,
+              borderRadius: 6,
+              border: '1px solid #ccc',
+              fontFamily: 'inherit'
+            }}
+          />
+        </div>
       </div>
 
       {status && (

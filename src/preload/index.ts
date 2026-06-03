@@ -3,8 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 const api = {
   selectDirectory: (): Promise<string | null> => ipcRenderer.invoke('dialog:openDirectory'),
-  scan: (rootPath: string): Promise<{ inserted: number; skipped: number }> =>
-    ipcRenderer.invoke('scan', rootPath)
+  scan: (rootPath: string, filters?: { from?: string; to?: string }): Promise<{ inserted: number; skipped: number }> => ipcRenderer.invoke('scan', rootPath, filters)
 }
 
 if (process.contextIsolated) {
