@@ -69,6 +69,7 @@ export default function Testing() {
           <input
             type="month"
             value={fromDate}
+            max={toDate}
             onChange={(e) => setFromDate(e.target.value)}
             style={{
               padding: '6px 10px',
@@ -85,6 +86,7 @@ export default function Testing() {
           <input
             type="month"
             value={toDate}
+            min={fromDate}
             onChange={(e) => setToDate(e.target.value)}
             style={{
               padding: '6px 10px',
