@@ -25,6 +25,12 @@ export function getDb(): Database.Database {
   return db
 }
 
+/**
+ * Extracts the year and month from a specific ZIP filename format (e.g., "OR202506.zip").
+ * * @param name - The full path or filename of the ZIP file.
+ * @returns An object containing the parsed `{ month, year }` as numbers,
+ * or `null` if the filename doesn't match the expected `ORYYYYMM` pattern.
+ */
 export function parseInnerZip(name: string): { month: number; year: number } | null {
   // OR202506.zip → year=2025, month=06
   const match = path
@@ -35,6 +41,12 @@ export function parseInnerZip(name: string): { month: number; year: number } | n
   return { year: parseInt(match[1], 10), month: parseInt(match[2], 10) }
 }
 
+/**
+ * Parses a standard string date representation in "YYYY-MM" format into a structured object.
+ * * @param value - The optional date string to parse (e.g., "2026-03").
+ * @returns A `MonthYear` object with numeric values, or `null` if the input
+ * is missing, invalid, or contains an out-of-range month.
+ */
 export function parseMonthYear(value?: string): MonthYear | null {
   if (!value) return null
   const match = value.match(/^(\d{4})-(0[1-9]|1[0-2])$/)
@@ -42,10 +54,25 @@ export function parseMonthYear(value?: string): MonthYear | null {
   return { year: parseInt(match[1], 10), month: parseInt(match[2], 10) }
 }
 
+/**
+ * Converts a `MonthYear` object into a single comparable, sortable integer.
+ * * @example
+ * // returns 202603
+ * monthYearValue({ year: 2026, month: 3 })
+ * * @param date - The MonthYear object to convert.
+ * @returns An integer in the format `YYYYMM`.
+ */
 export function monthYearValue(date: MonthYear): number {
   return date.year * 100 + date.month
 }
 
+/**
+ * Validates if a target date falls inclusively within a specified start and end range.
+ * * @param date - The target date to check.
+ * @param from - The start of the date range (optional; if null, no lower bound is enforced).
+ * @param to - The end of the date range (optional; if null, no upper bound is enforced).
+ * @returns `true` if the date is within bounds; otherwise `false`.
+ */
 export function isMonthYearInRange(date: MonthYear, from: MonthYear | null, to: MonthYear | null): boolean {
   const value = monthYearValue(date)
   if (from && value < monthYearValue(from)) return false
@@ -53,6 +80,17 @@ export function isMonthYearInRange(date: MonthYear, from: MonthYear | null, to: 
   return true
 }
 
+/**
+ * Scans raw text extracted from an Official Receipt (OR) file to determine
+ * the total billed amount and the primary classification of the transaction.
+ * * - **Amount Extraction:** Sequentially tests multiple patterns ("Total Charge", "Net Sr. Citizen Bill",
+ * "Total Bill", "Total") and captures the first match found, automatically stripping out commas.
+ * - **Payment/Type Tagging:** * - Categorizes as `'Sr Bill'` if senior citizen keywords are present.
+ * - Categorizes as `'Cash'` if explicit cash keywords are detected.
+ * - Categorizes as `'Non Cash'` if partner acronym tags (e.g., `-GRAB-`, `-PANDA-`) are found.
+ * * @param text - The raw text content of the receipt file.
+ * @returns An object containing the parsed numeric `amount` (or null) and the `paymentType` category string (or null).
+ */
 export function parseOrFileMetadata(text: string): { amount: number | null; paymentType: string | null } {
   // Try multiple amount locations: Total Charge, Net Sr. Citizen Bill, Total Bill, Total
   const patterns = [
