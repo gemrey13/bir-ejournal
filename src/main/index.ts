@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { scanAndSave } from './zipScanner'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -48,6 +49,10 @@ ipcMain.handle('dialog:openDirectory', async (_) => {
   
   return filePaths[0] // Sends the native Windows path back to React
 })
+
+ ipcMain.handle('scan', async (_event, rootPath: string) => {
+    return scanAndSave(rootPath);
+  });
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
