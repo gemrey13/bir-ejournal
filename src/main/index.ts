@@ -46,13 +46,13 @@ ipcMain.handle('dialog:openDirectory', async (_) => {
   if (canceled || filePaths.length === 0) {
     return null
   }
-  
-  return filePaths[0] 
+
+  return filePaths[0]
 })
 
- ipcMain.handle('scan', async (_event, rootPath: string, filters?: { from?: string; to?: string }) => {
-    return scanAndSave(rootPath, filters);
-  });
+ipcMain.handle('scan', async (_event, rootPath: string, filters?: { from?: string; to?: string }) => {
+  return scanAndSave(rootPath, filters)
+})
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')

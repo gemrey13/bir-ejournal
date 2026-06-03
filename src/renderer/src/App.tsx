@@ -76,7 +76,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans tracking-tight antialiased selection:bg-emerald-100 selection:text-emerald-900">
-      
       {/* Minimalist Light Header */}
       <header className="max-w-6xl w-full mx-auto px-8 pt-8 pb-4 flex items-center justify-between select-none">
         <div className="flex items-center space-x-3">
@@ -84,15 +83,11 @@ export default function App() {
             <Binary size={18} className="stroke-[1.5]" />
           </div>
           <div>
-            <h1 className="text-base font-semibold text-slate-900 tracking-tight">
-              BIR eJournal & Auditing
-            </h1>
-            <p className="text-[10px] font-mono tracking-widest text-slate-400 uppercase">
-              Engine v2.0.0
-            </p>
+            <h1 className="text-base font-semibold text-slate-900 tracking-tight">BIR eJournal & Auditing</h1>
+            <p className="text-[10px] font-mono tracking-widest text-slate-400 uppercase">Engine v2.0.0</p>
           </div>
         </div>
-        
+
         <div className="text-[10px] font-mono font-medium text-slate-600 bg-white border border-slate-200 px-2.5 py-1 rounded-md flex items-center space-x-1.5 shadow-xs">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           <span>System Ready</span>
@@ -102,13 +97,10 @@ export default function App() {
       {/* Main Workspace Frame */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-8 py-6 flex flex-col justify-center">
         <form onSubmit={executeAuditGeneration} className="space-y-10">
-          
           {/* Main Grid Content Matrix */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-12 gap-y-8">
-            
             {/* Left Content Context: Configurations */}
             <div className="lg:col-span-2 space-y-8">
-              
               {/* Row 1: Reporting Durations */}
               <div className="space-y-3">
                 <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium tracking-wide">
@@ -149,7 +141,7 @@ export default function App() {
                   <FolderOpen size={13} className="text-slate-400" />
                   <span>Workspace Directory Ingestion</span>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="space-y-1">
                     <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Target Folder Filepath</label>
@@ -208,9 +200,7 @@ export default function App() {
             {/* Right Side Column Set: Control Parameters */}
             <div className="bg-slate-100/40 border border-slate-200/60 rounded-2xl p-6 flex flex-col justify-between space-y-6">
               <div className="space-y-5">
-                <div className="text-xs font-semibold text-slate-400 tracking-wider uppercase border-b border-slate-200 pb-2">
-                  Validation Thresholds
-                </div>
+                <div className="text-xs font-semibold text-slate-400 tracking-wider uppercase border-b border-slate-200 pb-2">Validation Thresholds</div>
 
                 <div className="space-y-1">
                   <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">BIR Reference Sales</label>
@@ -284,7 +274,6 @@ export default function App() {
                   </>
                 )}
               </button>
-
             </div>
           </div>
         </form>
