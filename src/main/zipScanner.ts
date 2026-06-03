@@ -37,9 +37,7 @@ function parseInnerZip(name: string): { month: number; year: number } | null {
   return { year: parseInt(match[1], 10), month: parseInt(match[2], 10) }
 }
 
-export async function scanAndSave(
-  branchPath: string
-): Promise<{ inserted: number; skipped: number }> {
+export async function scanAndSave(branchPath: string): Promise<{ inserted: number; skipped: number }> {
   const database = getDb()
   const insert = database.prepare(`
     INSERT OR IGNORE INTO or_records (branch, filename, month, year)
