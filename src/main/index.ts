@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -31,6 +31,23 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
+
+ipcMain.handle('dialog:openDirectory', async (_) => {
+  const window = BrowserWindow.getFocusedWindow()
+  if (!window) return null
+
+  const { canceled, filePaths } = await dialog.showOpenDialog(window, {
+    title: 'Select Branch Source Folder',
+    properties: ['openDirectory', 'createDirectory'],
+    buttonLabel: 'Select Branch Folder'
+  })
+
+  if (canceled || filePaths.length === 0) {
+    return null
+  }
+  
+  return filePaths[0] // Sends the native Windows path back to React
+})
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
