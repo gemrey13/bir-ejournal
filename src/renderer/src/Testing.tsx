@@ -5,6 +5,8 @@ export default function Testing() {
   const [fromDate, setFromDate] = useState('') // Format: "YYYY-MM"
   const [toDate, setToDate] = useState('') // Format: "YYYY-MM"
   const [targetAmount, setTargetAmount] = useState(200000)
+  const [minHighValue, setMinHighValue] = useState('')
+  const [maxLowValue, setMaxLowValue] = useState('')
   const [outputPath, setOutputPath] = useState('C:\\Users\\Gem\\Desktop\\Giligans\\Output')
 
   const [status, setStatus] = useState<string | null>(null)
@@ -20,12 +22,27 @@ export default function Testing() {
         to: toDate || undefined
       })
 
+      const minHigh = minHighValue ? parseFloat(minHighValue) : 0
+      const maxLow = maxLowValue ? parseFloat(maxLowValue) : Number.POSITIVE_INFINITY
+
+      const reconcileResult = await window.api?.reconcile(
+        rootPath.trim(),
+        targetAmount,
+        outputPath.trim(),
+        {
+          from: fromDate || undefined,
+          to: toDate || undefined
+        },
+        minHigh,
+        maxLow
+      )
+
       console.log('Scan fromDate:', fromDate)
       console.log('Scan toDate:', toDate)
 
-      await window.api?.reconcile(rootPath.trim(), targetAmount, outputPath.trim())
-
-      setStatus(`Done — inserted: ${result.inserted}, duplicates skipped: ${result.skipped}`)
+      setStatus(
+        `Done — scanned: inserted ${result.inserted}, duplicates skipped ${result.skipped}. Reconciled: ${reconcileResult?.processed} files, total amount ${reconcileResult?.totalAmount}`
+      )
     } catch (e) {
       setStatus(`Error: ${e}`)
     } finally {
@@ -78,8 +95,43 @@ export default function Testing() {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563' }}>Target Amount</label>
+          <input
+            type="number"
+            min={0}
+            value={targetAmount}
+            onChange={(e) => setTargetAmount(Number(e.target.value))}
+            style={{
+              padding: '6px 10px',
+              fontSize: 13,
+              borderRadius: 6,
+              border: '1px solid #ccc',
+              fontFamily: 'inherit'
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563' }}>Output Path</label>
+          <input
+            value={outputPath}
+            onChange={(e) => setOutputPath(e.target.value)}
+            placeholder="C:\\Users\\Gem\\Desktop\\Giligans\\Output"
+            style={{
+              padding: '6px 10px',
+              fontSize: 13,
+              borderRadius: 6,
+              border: '1px solid #ccc',
+              fontFamily: 'inherit'
+            }}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563' }}>From Month</label>
           <input
             type="month"
@@ -96,13 +148,49 @@ export default function Testing() {
           />
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563' }}>To Month</label>
           <input
             type="month"
             value={toDate}
             min={fromDate}
             onChange={(e) => setToDate(e.target.value)}
+            style={{
+              padding: '6px 10px',
+              fontSize: 13,
+              borderRadius: 6,
+              border: '1px solid #ccc',
+              fontFamily: 'inherit'
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563' }}>Min High Value</label>
+          <input
+            type="number"
+            min={0}
+            value={minHighValue}
+            placeholder="0"
+            onChange={(e) => setMinHighValue(e.target.value)}
+            style={{
+              padding: '6px 10px',
+              fontSize: 13,
+              borderRadius: 6,
+              border: '1px solid #ccc',
+              fontFamily: 'inherit'
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563' }}>Max Low Value</label>
+          <input
+            type="number"
+            min={0}
+            value={maxLowValue}
+            placeholder="No limit"
+            onChange={(e) => setMaxLowValue(e.target.value)}
             style={{
               padding: '6px 10px',
               fontSize: 13,

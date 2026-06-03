@@ -55,9 +55,20 @@ ipcMain.handle('scan', async (_event, rootPath: string, filters?: { from?: strin
   return scanAndSave(rootPath, filters)
 })
 
-ipcMain.handle('reconcile', async (_event, branchPath: string, targetAmount: number, outputPath: string) => {
-  return reconcileWithTarget(branchPath, targetAmount, outputPath)
-})
+ipcMain.handle(
+  'reconcile',
+  async (
+    _event,
+    branchPath: string,
+    targetAmount: number,
+    outputPath: string,
+    filters?: { from?: string; to?: string },
+    minHighValue = 0,
+    maxLowValue = Number.POSITIVE_INFINITY
+  ) => {
+    return reconcileWithTarget(branchPath, targetAmount, outputPath, filters, minHighValue, maxLowValue)
+  }
+)
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')

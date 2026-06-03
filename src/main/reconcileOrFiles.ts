@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import AdmZip from 'adm-zip'
-import { getDb } from './utils'
+import { getDb, parseInnerZip, parseMonthYear, isMonthYearInRange, monthYearValue } from './utils'
 
 const OR_ZIP_PASSWORD = 'admate'
 
@@ -14,7 +14,7 @@ interface OrRecord {
   year: number
   amount: number | null
   payment_type: string | null
-  fileContent?: string
+  fileContent?: string | null
 }
 
 /**
@@ -38,13 +38,107 @@ function replaceReceiptBody(text: string, newBody: string): string {
   return text.replace(/(\+[-]{36,}\+[\s\S]*?={40,})/i, newBody)
 }
 
+function getFileKey(year: number, month: number, filename: string): string {
+  return `${year}_${month}_${filename.toLowerCase()}`
+}
+
+function buildOutputFilePath(outputDir: string, year: number, month: number, filename: string): string {
+  const monthStr = String(month).padStart(2, '0')
+  const yearDir = path.join(outputDir, String(year), monthStr)
+  fs.mkdirSync(yearDir, { recursive: true })
+  return path.join(yearDir, filename)
+}
+
+function copyAllOrSrFilesFromBranch(
+  branchPath: string,
+  outputDir: string,
+  overrides: Map<string, string>,
+  fromDate: ReturnType<typeof parseMonthYear>,
+  toDate: ReturnType<typeof parseMonthYear>
+): number {
+  const tmpDir = path.join(os.tmpdir(), `or_copy_${Date.now()}`)
+  fs.mkdirSync(tmpDir, { recursive: true })
+  let copied = 0
+
+  try {
+    for (const yearFolder of fs.readdirSync(branchPath)) {
+      if (!/^\d{4}$/.test(yearFolder)) continue
+      const yearNumber = parseInt(yearFolder, 10)
+      if (fromDate && yearNumber < fromDate.year) continue
+      if (toDate && yearNumber > toDate.year) continue
+      const yearPath = path.join(branchPath, yearFolder)
+      if (!fs.statSync(yearPath).isDirectory()) continue
+
+      for (const outerName of fs.readdirSync(yearPath)) {
+        if (!/\.zip$/i.test(outerName)) continue
+
+        let outerZip: AdmZip
+        try {
+          outerZip = new AdmZip(path.join(yearPath, outerName))
+        } catch {
+          continue
+        }
+
+        for (const entry of outerZip.getEntries()) {
+          if (entry.isDirectory) continue
+          if (!/^OR\d{6}\.zip$/i.test(path.basename(entry.entryName))) continue
+
+          const info = parseInnerZip(path.basename(entry.entryName))
+          if (!info) continue
+
+          const tmpZip = path.join(tmpDir, `${yearFolder}_${path.basename(entry.entryName)}`)
+          try {
+            const outerBuf: Buffer = (entry as any).getData(OR_ZIP_PASSWORD)
+            fs.writeFileSync(tmpZip, outerBuf)
+
+            let innerZip: AdmZip
+            try {
+              innerZip = new AdmZip(tmpZip)
+            } catch {
+              continue
+            }
+
+            for (const file of innerZip.getEntries()) {
+              if (file.isDirectory) continue
+              if (!/\.(or|sr)$/i.test(file.entryName)) continue
+
+              const infoDate = { year: info.year, month: info.month }
+              if (!isMonthYearInRange(infoDate, fromDate, toDate)) continue
+
+              const filename = path.basename(file.entryName)
+              const key = getFileKey(info.year, info.month, filename)
+              const outputFile = buildOutputFilePath(outputDir, info.year, info.month, filename)
+
+              if (overrides.has(key)) {
+                fs.writeFileSync(outputFile, overrides.get(key)!, 'utf8')
+              } else {
+                const buf: Buffer = (file as any).getData(OR_ZIP_PASSWORD)
+                if (!buf) continue
+                fs.writeFileSync(outputFile, buf)
+              }
+              copied++
+            }
+          } finally {
+            try {
+              fs.unlinkSync(tmpZip)
+            } catch {}
+          }
+        }
+      }
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+
+  return copied
+}
+
 /**
  * Extracts a specific OR file from the zip structure
  */
 function extractOrFileContent(
   branchPath: string,
   year: number,
-  month: number,
   filename: string
 ): string | null {
   try {
@@ -113,14 +207,31 @@ function extractOrFileContent(
 export async function reconcileOrFiles(
   branchPath: string,
   targetAmount: number,
-  outputBasePath: string
+  outputBasePath: string,
+  filters?: { from?: string; to?: string },
+  minHighValue = 0,
+  maxLowValue = Number.POSITIVE_INFINITY
 ): Promise<{ processed: number; totalAmount: number; message: string }> {
-  console.log(`Starting reconciliation with target: ${targetAmount}`)
+  console.log(
+    `Starting reconciliation with target: ${targetAmount}, minHighValue: ${minHighValue}, maxLowValue: ${maxLowValue}`
+  )
+
+  const fromDate = parseMonthYear(filters?.from)
+  const toDate = parseMonthYear(filters?.to)
+
+  if (filters?.from && !fromDate) {
+    throw new Error('Invalid "from" date format. Use YYYY-MM.')
+  }
+  if (filters?.to && !toDate) {
+    throw new Error('Invalid "to" date format. Use YYYY-MM.')
+  }
+  if (fromDate && toDate && monthYearValue(fromDate) > monthYearValue(toDate)) {
+    throw new Error('The "from" date must be earlier than or equal to the "to" date.')
+  }
 
   const db = getDb()
 
-  // Get all cash payment records from DB, sorted by amount DESC
-  const records = db
+  const cashRecords = db
     .prepare(`
       SELECT id, branch, filename, month, year, amount, payment_type
       FROM or_records
@@ -129,33 +240,97 @@ export async function reconcileOrFiles(
     `)
     .all() as OrRecord[]
 
-  if (records.length < 2) {
+  const nonCashRecords = db
+    .prepare(`
+      SELECT id, branch, filename, month, year, amount, payment_type
+      FROM or_records
+      WHERE payment_type = 'Non Cash'
+      ORDER BY amount DESC NULLS LAST
+    `)
+    .all() as OrRecord[]
+
+  const totalRecords = cashRecords.length + nonCashRecords.length
+  if (totalRecords < 2) {
     return {
       processed: 0,
       totalAmount: 0,
-      message: 'Not enough cash records to reconcile'
+      message: 'Not enough records to reconcile'
     }
   }
 
-  // Extract file contents for all records
-  console.log(`Extracting ${records.length} cash receipt files...`)
-  const enrichedRecords = records.map((record) => ({
-    ...record,
-    fileContent: extractOrFileContent(branchPath, record.year, record.month, record.filename)
-  }))
+  console.log(`Extracting ${totalRecords} receipt files...`)
+  const enrichedRecordsByType: Record<string, OrRecord[]> = {
+    Cash: cashRecords.map((record) => ({
+      ...record,
+      fileContent: extractOrFileContent(branchPath, record.year, record.filename)
+    })),
+    'Non Cash': nonCashRecords.map((record) => ({
+      ...record,
+      fileContent: extractOrFileContent(branchPath, record.year, record.filename)
+    }))
+  }
+
+  const outputDir = path.join(outputBasePath, path.basename(branchPath))
+  fs.mkdirSync(outputDir, { recursive: true })
+
+  const paymentTypes = ['Cash', 'Non Cash']
+  let typeIndex = 0
+  let currentRecords = enrichedRecordsByType[paymentTypes[typeIndex]]
+  let leftIdx = 0
+  let rightIdx = currentRecords.length - 1
 
   let totalAmount = 0
   let pairsProcessed = 0
-  const processedFiles: Set<number> = new Set()
-  const outputDir = path.join(outputBasePath, `reconciled_${Date.now()}`)
-  fs.mkdirSync(outputDir, { recursive: true })
+  const modifiedFiles = new Map<string, string>()
 
-  let leftIdx = 0 // Highest amounts
-  let rightIdx = enrichedRecords.length - 1 // Lowest amounts
+  while (totalAmount < targetAmount) {
+    if (!currentRecords || currentRecords.length < 2 || leftIdx >= rightIdx) {
+      if (typeIndex + 1 < paymentTypes.length) {
+        typeIndex += 1
+        currentRecords = enrichedRecordsByType[paymentTypes[typeIndex]]
+        leftIdx = 0
+        rightIdx = currentRecords.length - 1
+        continue
+      }
+      break
+    }
 
-  while (leftIdx < rightIdx && totalAmount < targetAmount) {
-    const highestRecord = enrichedRecords[leftIdx]
-    const lowestRecord = enrichedRecords[rightIdx]
+    const highestRecord = currentRecords[leftIdx]
+    const lowestRecord = currentRecords[rightIdx]
+
+    if (!highestRecord || !lowestRecord) break
+
+    const highestAmount = highestRecord.amount ?? 0
+    const lowestAmount = lowestRecord.amount ?? 0
+
+    if (highestRecord.amount === null) {
+      leftIdx++
+      continue
+    }
+
+    if (highestAmount < minHighValue) {
+      if (typeIndex + 1 < paymentTypes.length) {
+        typeIndex += 1
+        currentRecords = enrichedRecordsByType[paymentTypes[typeIndex]]
+        leftIdx = 0
+        rightIdx = currentRecords.length - 1
+        continue
+      }
+      break
+    }
+
+    if (lowestRecord.amount === null) {
+      rightIdx--
+      continue
+    }
+
+    if (lowestAmount > maxLowValue) {
+      if (rightIdx !== currentRecords.length - 1) {
+        rightIdx = currentRecords.length - 1
+        continue
+      }
+      break
+    }
 
     if (!highestRecord.fileContent || !lowestRecord.fileContent) {
       if (!highestRecord.fileContent) leftIdx++
@@ -172,58 +347,26 @@ export async function reconcileOrFiles(
       continue
     }
 
-    // Replace highest's body with lowest's body
     const modifiedContent = replaceReceiptBody(highestRecord.fileContent, lowestBody)
+    modifiedFiles.set(getFileKey(highestRecord.year, highestRecord.month, highestRecord.filename), modifiedContent)
 
-    // Create output directory structure: year/month
-    const monthStr = String(highestRecord.month).padStart(2, '0')
-    const yearDir = path.join(outputDir, String(highestRecord.year), monthStr)
-    fs.mkdirSync(yearDir, { recursive: true })
-
-    // Save modified file with same filename
-    const outputFile = path.join(yearDir, highestRecord.filename)
-    fs.writeFileSync(outputFile, modifiedContent, 'utf8')
-
-    // Track total (use lowest amount since that's what the file now contains)
-    const lowestAmount = lowestRecord.amount || 0
     totalAmount += lowestAmount
-
-    processedFiles.add(highestRecord.id)
-    processedFiles.add(lowestRecord.id)
     pairsProcessed++
 
     console.log(
-      `Pair ${pairsProcessed}: Highest(${highestRecord.id}) amount=${highestRecord.amount} paired with Lowest(${lowestRecord.id}) amount=${lowestAmount}. Total: ${totalAmount}`
+      `Pair ${pairsProcessed}: ${paymentTypes[typeIndex]} highest(${highestRecord.id}) amount=${highestAmount} paired with lowest(${lowestRecord.id}) amount=${lowestAmount}. Total: ${totalAmount}`
     )
 
     leftIdx++
     rightIdx--
-
-    // Check if we've reached target
-    if (totalAmount >= targetAmount) {
-      break
-    }
   }
 
-  // Copy remaining unprocessed files
-  let remainingCopied = 0
-  for (const record of enrichedRecords) {
-    if (processedFiles.has(record.id)) continue
-    if (!record.fileContent) continue
-
-    const monthStr = String(record.month).padStart(2, '0')
-    const yearDir = path.join(outputDir, String(record.year), monthStr)
-    fs.mkdirSync(yearDir, { recursive: true })
-
-    const outputFile = path.join(yearDir, record.filename)
-    fs.writeFileSync(outputFile, record.fileContent, 'utf8')
-    remainingCopied++
-  }
+  const totalCopied = copyAllOrSrFilesFromBranch(branchPath, outputDir, modifiedFiles, fromDate, toDate)
 
   return {
-    processed: pairsProcessed * 2 + remainingCopied,
+    processed: totalCopied,
     totalAmount,
-    message: `Reconciliation complete. Processed ${pairsProcessed} pairs, copied ${remainingCopied} remaining files. Total amount: ${totalAmount.toFixed(2)}`
+    message: `Reconciliation complete. Processed ${pairsProcessed} pairs and copied ${totalCopied} files into ${outputDir}. Total amount: ${totalAmount.toFixed(2)}`
   }
 }
 
@@ -233,7 +376,10 @@ export async function reconcileOrFiles(
 export function reconcileWithTarget(
   branchPath: string,
   targetAmount: number,
-  outputBasePath: string
+  outputBasePath: string,
+  filters?: { from?: string; to?: string },
+  minHighValue = 0,
+  maxLowValue = Number.POSITIVE_INFINITY
 ): Promise<{ processed: number; totalAmount: number; message: string }> {
-  return reconcileOrFiles(branchPath, targetAmount, outputBasePath)
+  return reconcileOrFiles(branchPath, targetAmount, outputBasePath, filters, minHighValue, maxLowValue)
 }
