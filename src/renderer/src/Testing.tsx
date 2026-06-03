@@ -4,6 +4,9 @@ export default function Testing() {
   const [rootPath, setRootPath] = useState('')
   const [fromDate, setFromDate] = useState('') // Format: "YYYY-MM"
   const [toDate, setToDate] = useState('') // Format: "YYYY-MM"
+  const [targetAmount, setTargetAmount] = useState(200000)
+  const [outputPath, setOutputPath] = useState('C:\\Users\\Gem\\Desktop\\Giligans\\Output')
+
   const [status, setStatus] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -12,19 +15,31 @@ export default function Testing() {
     setLoading(true)
     setStatus(null)
     try {
-      const result = await window.api.scan(rootPath.trim(), {
+      const result = await (window as any).api.scan(rootPath.trim(), {
         from: fromDate || undefined,
         to: toDate || undefined
       })
 
       console.log('Scan fromDate:', fromDate)
       console.log('Scan toDate:', toDate)
+
+      await window.api?.reconcile(rootPath.trim(), targetAmount, outputPath.trim())
+
       setStatus(`Done — inserted: ${result.inserted}, duplicates skipped: ${result.skipped}`)
     } catch (e) {
       setStatus(`Error: ${e}`)
     } finally {
       setLoading(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div style={{ padding: 32, fontFamily: 'Segoe UI, sans-serif', maxWidth: 560 }}>
+        <h2 style={{ marginBottom: 20 }}>Scanning for OR files...</h2>
+        <p style={{ fontSize: 13, color: '#4b5563' }}>This may take a while depending on the number of files and their sizes.</p>
+      </div>
+    )
   }
 
   return (

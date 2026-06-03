@@ -3,6 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { scanAndSave } from './zipScanner'
+import { reconcileWithTarget } from './reconcileOrFiles'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -52,6 +53,10 @@ ipcMain.handle('dialog:openDirectory', async (_) => {
 
 ipcMain.handle('scan', async (_event, rootPath: string, filters?: { from?: string; to?: string }) => {
   return scanAndSave(rootPath, filters)
+})
+
+ipcMain.handle('reconcile', async (_event, branchPath: string, targetAmount: number, outputPath: string) => {
+  return reconcileWithTarget(branchPath, targetAmount, outputPath)
 })
 
 app.whenReady().then(() => {
