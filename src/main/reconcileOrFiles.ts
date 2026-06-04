@@ -301,19 +301,32 @@ export async function reconcileOrFiles(
   const modifiedFiles = new Map<string, string>()
 
   const usedHigh = new Set<number>()
-  const usedLow = new Set<number>()
   let highStage = 0 // 0 = Cash/Non Cash, 1 = Sr Bill
   let highIdx = 0
   let lowIdx = 0
+
+  function findNextLowIndex(startIndex: number, highestId: number): number | null {
+    if (lowRecords.length === 0) return null
+    let attempts = 0
+    let idx = startIndex
+
+    while (attempts < lowRecords.length) {
+      const record = lowRecords[idx]
+      if (record.amount !== null && record.amount <= maxLowValue && record.id !== highestId) {
+        return idx
+      }
+      idx = (idx + 1) % lowRecords.length
+      attempts++
+    }
+
+    return null
+  }
 
   while (totalAmount < targetAmount) {
     const currentHighRecords = highStage === 0 ? highCashNonCashRecords : highSrBillRecords
 
     while (highIdx < currentHighRecords.length && (currentHighRecords[highIdx].amount === null || usedHigh.has(currentHighRecords[highIdx].id))) {
       highIdx++
-    }
-    while (lowIdx < lowRecords.length && (lowRecords[lowIdx].amount === null || usedLow.has(lowRecords[lowIdx].id))) {
-      lowIdx++
     }
 
     if (highIdx >= currentHighRecords.length) {
@@ -324,15 +337,16 @@ export async function reconcileOrFiles(
       }
       break
     }
-    if (lowIdx >= lowRecords.length) break
 
     const highestRecord = currentHighRecords[highIdx]
+    if (!highestRecord) break
+
+    const nextLowIdx = findNextLowIndex(lowIdx, highestRecord.id)
+    if (nextLowIdx === null) break
+
+    lowIdx = nextLowIdx
     const lowestRecord = lowRecords[lowIdx]
-    if (!highestRecord || !lowestRecord) break
-    if (highestRecord.id === lowestRecord.id) {
-      lowIdx++
-      continue
-    }
+    if (!lowestRecord) break
 
     const highestAmount = highestRecord.amount ?? 0
     const lowestAmount = lowestRecord.amount ?? 0
@@ -342,21 +356,23 @@ export async function reconcileOrFiles(
       continue
     }
     if (lowestAmount > maxLowValue) {
-      lowIdx++
+      lowIdx = (lowIdx + 1) % lowRecords.length
       continue
     }
 
     if (!highestRecord.fileContent || !lowestRecord.fileContent) {
       if (!highestRecord.fileContent) highIdx++
-      if (!lowestRecord.fileContent) lowIdx++
+      if (!lowestRecord.fileContent) {
+        lowIdx = (lowIdx + 1) % lowRecords.length
+      }
       continue
     }
 
     const highestBody = extractReceiptBody(highestRecord.fileContent)
     const lowestBody = extractReceiptBody(lowestRecord.fileContent)
     if (!highestBody || !lowestBody) {
-      highIdx++
-      lowIdx++
+      if (!highestBody) highIdx++
+      lowIdx = (lowIdx + 1) % lowRecords.length
       continue
     }
 
@@ -372,14 +388,13 @@ export async function reconcileOrFiles(
     totalAmount += lowestAmount
     pairsProcessed++
     usedHigh.add(highestRecord.id)
-    usedLow.add(lowestRecord.id)
 
     console.log(
       `Pair ${pairsProcessed}: ${highStage === 0 ? 'Cash/Non Cash' : 'Sr Bill'} highest(${highestRecord.id}) amount=${highestAmount} paired with lowest(${lowestRecord.id}) amount=${lowestAmount}. Total: ${totalAmount}`
     )
 
     highIdx++
-    lowIdx++
+    lowIdx = (lowIdx + 1) % lowRecords.length
   }
 
   const totalCopied = copyAllOrSrFilesFromBranch(branchPath, outputDir, modifiedFiles, fromDate, toDate)
