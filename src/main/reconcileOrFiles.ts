@@ -249,7 +249,16 @@ export async function reconcileOrFiles(
     `)
     .all() as OrRecord[]
 
-  const totalRecords = cashRecords.length + nonCashRecords.length
+  const srBillRecords = db
+    .prepare(`
+      SELECT id, branch, filename, month, year, amount, payment_type
+      FROM or_records
+      WHERE payment_type = 'Sr Bill'
+      ORDER BY amount DESC NULLS LAST
+    `)
+    .all() as OrRecord[]
+
+  const totalRecords = cashRecords.length + nonCashRecords.length + srBillRecords.length
   if (totalRecords < 2) {
     return {
       processed: 0,
@@ -267,91 +276,93 @@ export async function reconcileOrFiles(
     'Non Cash': nonCashRecords.map((record) => ({
       ...record,
       fileContent: extractOrFileContent(branchPath, record.year, record.filename)
+    })),
+    'Sr Bill': srBillRecords.map((record) => ({
+      ...record,
+      fileContent: extractOrFileContent(branchPath, record.year, record.filename)
     }))
   }
 
   const outputDir = path.join(outputBasePath, path.basename(branchPath))
   fs.mkdirSync(outputDir, { recursive: true })
 
-  const paymentTypes = ['Cash', 'Non Cash']
-  let typeIndex = 0
-  let currentRecords = enrichedRecordsByType[paymentTypes[typeIndex]]
-  let leftIdx = 0
-  let rightIdx = currentRecords.length - 1
+  const allRecords: OrRecord[] = Object.values(enrichedRecordsByType).flat()
+  const availableRecords = allRecords.filter((record) => record.amount !== null)
+
+  const lowRecords = [...availableRecords].sort((a, b) => (a.amount! as number) - (b.amount! as number))
+  const highCashNonCashRecords = [...availableRecords]
+    .filter((record) => record.payment_type === 'Cash' || record.payment_type === 'Non Cash')
+    .sort((a, b) => (b.amount! as number) - (a.amount! as number))
+  const highSrBillRecords = [...availableRecords]
+    .filter((record) => record.payment_type === 'Sr Bill')
+    .sort((a, b) => (b.amount! as number) - (a.amount! as number))
 
   let totalAmount = 0
   let pairsProcessed = 0
   const modifiedFiles = new Map<string, string>()
 
+  const usedHigh = new Set<number>()
+  const usedLow = new Set<number>()
+  let highStage = 0 // 0 = Cash/Non Cash, 1 = Sr Bill
+  let highIdx = 0
+  let lowIdx = 0
+
   while (totalAmount < targetAmount) {
-    if (!currentRecords || currentRecords.length < 2 || leftIdx >= rightIdx) {
-      if (typeIndex + 1 < paymentTypes.length) {
-        typeIndex += 1
-        currentRecords = enrichedRecordsByType[paymentTypes[typeIndex]]
-        leftIdx = 0
-        rightIdx = currentRecords.length - 1
+    const currentHighRecords = highStage === 0 ? highCashNonCashRecords : highSrBillRecords
+
+    while (highIdx < currentHighRecords.length && (currentHighRecords[highIdx].amount === null || usedHigh.has(currentHighRecords[highIdx].id))) {
+      highIdx++
+    }
+    while (lowIdx < lowRecords.length && (lowRecords[lowIdx].amount === null || usedLow.has(lowRecords[lowIdx].id))) {
+      lowIdx++
+    }
+
+    if (highIdx >= currentHighRecords.length) {
+      if (highStage === 0 && highSrBillRecords.length > 0) {
+        highStage = 1
+        highIdx = 0
         continue
       }
       break
     }
+    if (lowIdx >= lowRecords.length) break
 
-    const highestRecord = currentRecords[leftIdx]
-    const lowestRecord = currentRecords[rightIdx]
-
+    const highestRecord = currentHighRecords[highIdx]
+    const lowestRecord = lowRecords[lowIdx]
     if (!highestRecord || !lowestRecord) break
+    if (highestRecord.id === lowestRecord.id) {
+      lowIdx++
+      continue
+    }
 
     const highestAmount = highestRecord.amount ?? 0
     const lowestAmount = lowestRecord.amount ?? 0
 
-    if (highestRecord.amount === null) {
-      leftIdx++
-      continue
-    }
-
     if (highestAmount < minHighValue) {
-      if (typeIndex + 1 < paymentTypes.length) {
-        typeIndex += 1
-        currentRecords = enrichedRecordsByType[paymentTypes[typeIndex]]
-        leftIdx = 0
-        rightIdx = currentRecords.length - 1
-        continue
-      }
-      break
-    }
-
-    if (lowestRecord.amount === null) {
-      rightIdx--
+      highIdx++
       continue
     }
-
     if (lowestAmount > maxLowValue) {
-      if (rightIdx !== currentRecords.length - 1) {
-        rightIdx = currentRecords.length - 1
-        continue
-      }
-      break
+      lowIdx++
+      continue
     }
 
     if (!highestRecord.fileContent || !lowestRecord.fileContent) {
-      if (!highestRecord.fileContent) leftIdx++
-      if (!lowestRecord.fileContent) rightIdx--
+      if (!highestRecord.fileContent) highIdx++
+      if (!lowestRecord.fileContent) lowIdx++
       continue
     }
 
     const highestBody = extractReceiptBody(highestRecord.fileContent)
     const lowestBody = extractReceiptBody(lowestRecord.fileContent)
-
     if (!highestBody || !lowestBody) {
-      leftIdx++
-      rightIdx--
+      highIdx++
+      lowIdx++
       continue
     }
 
     const modifiedContent = replaceReceiptBody(highestRecord.fileContent, lowestBody)
     modifiedFiles.set(getFileKey(highestRecord.year, highestRecord.month, highestRecord.filename), modifiedContent)
-
-    totalAmount += lowestAmount
-    pairsProcessed++
 
     try {
       db.prepare(`UPDATE or_records SET amount = @amount WHERE id = @id`).run({ amount: lowestAmount, id: highestRecord.id })
@@ -359,12 +370,17 @@ export async function reconcileOrFiles(
       console.error(`Failed to update DB for id=${highestRecord.id}:`, err)
     }
 
+    totalAmount += lowestAmount
+    pairsProcessed++
+    usedHigh.add(highestRecord.id)
+    usedLow.add(lowestRecord.id)
+
     console.log(
-      `Pair ${pairsProcessed}: ${paymentTypes[typeIndex]} highest(${highestRecord.id}) amount=${highestAmount} paired with lowest(${lowestRecord.id}) amount=${lowestAmount}. Total: ${totalAmount}`
+      `Pair ${pairsProcessed}: ${highStage === 0 ? 'Cash/Non Cash' : 'Sr Bill'} highest(${highestRecord.id}) amount=${highestAmount} paired with lowest(${lowestRecord.id}) amount=${lowestAmount}. Total: ${totalAmount}`
     )
 
-    leftIdx++
-    rightIdx--
+    highIdx++
+    lowIdx++
   }
 
   const totalCopied = copyAllOrSrFilesFromBranch(branchPath, outputDir, modifiedFiles, fromDate, toDate)
