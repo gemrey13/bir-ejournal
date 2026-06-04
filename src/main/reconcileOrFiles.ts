@@ -353,6 +353,12 @@ export async function reconcileOrFiles(
     totalAmount += lowestAmount
     pairsProcessed++
 
+    try {
+      db.prepare(`UPDATE or_records SET amount = @amount WHERE id = @id`).run({ amount: lowestAmount, id: highestRecord.id })
+    } catch (err) {
+      console.error(`Failed to update DB for id=${highestRecord.id}:`, err)
+    }
+
     console.log(
       `Pair ${pairsProcessed}: ${paymentTypes[typeIndex]} highest(${highestRecord.id}) amount=${highestAmount} paired with lowest(${lowestRecord.id}) amount=${lowestAmount}. Total: ${totalAmount}`
     )

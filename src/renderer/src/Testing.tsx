@@ -1,12 +1,12 @@
 import { useState } from 'react'
 
 export default function Testing() {
-  const [rootPath, setRootPath] = useState('')
+  const [rootPath, setRootPath] = useState('C:\\Users\\Gem\\Desktop\\Giligans\\ARA')
   const [fromDate, setFromDate] = useState('') // Format: "YYYY-MM"
   const [toDate, setToDate] = useState('') // Format: "YYYY-MM"
-  const [targetAmount, setTargetAmount] = useState(200000)
-  const [minHighValue, setMinHighValue] = useState('')
-  const [maxLowValue, setMaxLowValue] = useState('')
+  const [targetAmount, setTargetAmount] = useState(456791.42)
+  const [minHighValue, setMinHighValue] = useState(1000)
+  const [maxLowValue, setMaxLowValue] = useState(500)
   const [outputPath, setOutputPath] = useState('C:\\Users\\Gem\\Desktop\\Giligans\\Output')
 
   const [status, setStatus] = useState<string | null>(null)
