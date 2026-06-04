@@ -3,6 +3,7 @@ import * as path from 'path'
 import * as os from 'os'
 import AdmZip from 'adm-zip'
 import { getDb, parseInnerZip, parseMonthYear, isMonthYearInRange, monthYearValue } from './utils'
+import { shell } from 'electron'
 
 const OR_ZIP_PASSWORD = 'admate'
 
@@ -136,11 +137,7 @@ function copyAllOrSrFilesFromBranch(
 /**
  * Extracts a specific OR file from the zip structure
  */
-function extractOrFileContent(
-  branchPath: string,
-  year: number,
-  filename: string
-): string | null {
+function extractOrFileContent(branchPath: string, year: number, filename: string): string | null {
   try {
     const yearPath = path.join(branchPath, String(year))
     if (!fs.existsSync(yearPath)) return null
@@ -212,9 +209,7 @@ export async function reconcileOrFiles(
   minHighValue = 0,
   maxLowValue = Number.POSITIVE_INFINITY
 ): Promise<{ processed: number; totalAmount: number; message: string }> {
-  console.log(
-    `Starting reconciliation with target: ${targetAmount}, minHighValue: ${minHighValue}, maxLowValue: ${maxLowValue}`
-  )
+  console.log(`Starting reconciliation with target: ${targetAmount}, minHighValue: ${minHighValue}, maxLowValue: ${maxLowValue}`)
 
   const fromDate = parseMonthYear(filters?.from)
   const toDate = parseMonthYear(filters?.to)
@@ -232,30 +227,36 @@ export async function reconcileOrFiles(
   const db = getDb()
 
   const cashRecords = db
-    .prepare(`
+    .prepare(
+      `
       SELECT id, branch, filename, month, year, amount, payment_type
       FROM or_records
       WHERE payment_type = 'Cash'
       ORDER BY amount DESC NULLS LAST
-    `)
+    `
+    )
     .all() as OrRecord[]
 
   const nonCashRecords = db
-    .prepare(`
+    .prepare(
+      `
       SELECT id, branch, filename, month, year, amount, payment_type
       FROM or_records
       WHERE payment_type = 'Non Cash'
       ORDER BY amount DESC NULLS LAST
-    `)
+    `
+    )
     .all() as OrRecord[]
 
   const srBillRecords = db
-    .prepare(`
+    .prepare(
+      `
       SELECT id, branch, filename, month, year, amount, payment_type
       FROM or_records
       WHERE payment_type = 'Sr Bill'
       ORDER BY amount DESC NULLS LAST
-    `)
+    `
+    )
     .all() as OrRecord[]
 
   const totalRecords = cashRecords.length + nonCashRecords.length + srBillRecords.length
@@ -293,9 +294,7 @@ export async function reconcileOrFiles(
   const highCashNonCashRecords = [...availableRecords]
     .filter((record) => record.payment_type === 'Cash' || record.payment_type === 'Non Cash')
     .sort((a, b) => (b.amount! as number) - (a.amount! as number))
-  const highSrBillRecords = [...availableRecords]
-    .filter((record) => record.payment_type === 'Sr Bill')
-    .sort((a, b) => (b.amount! as number) - (a.amount! as number))
+  const highSrBillRecords = [...availableRecords].filter((record) => record.payment_type === 'Sr Bill').sort((a, b) => (b.amount! as number) - (a.amount! as number))
 
   let totalAmount = 0
   let pairsProcessed = 0
@@ -385,6 +384,7 @@ export async function reconcileOrFiles(
 
   const totalCopied = copyAllOrSrFilesFromBranch(branchPath, outputDir, modifiedFiles, fromDate, toDate)
 
+  shell.beep()
   return {
     processed: totalCopied,
     totalAmount,
