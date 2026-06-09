@@ -208,7 +208,7 @@ export async function reconcileOrFiles(
   filters?: { from?: string; to?: string },
   minHighValue = 0,
   maxLowValue = Number.POSITIVE_INFINITY
-): Promise<{ processed: number; totalAmount: number; message: string }> {
+): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; message: string }> {
   console.log(`Starting reconciliation with target: ${targetAmount}, minHighValue: ${minHighValue}, maxLowValue: ${maxLowValue}`)
 
   const fromDate = parseMonthYear(filters?.from)
@@ -264,6 +264,7 @@ export async function reconcileOrFiles(
     return {
       processed: 0,
       totalAmount: 0,
+      totalRecordAmount: 0,
       message: 'Not enough records to reconcile'
     }
   }
@@ -399,10 +400,24 @@ export async function reconcileOrFiles(
 
   const totalCopied = copyAllOrSrFilesFromBranch(branchPath, outputDir, modifiedFiles, fromDate, toDate)
 
+  const totalRecordAmountsample = db
+    .prepare(
+      `
+      SELECT sum(amount) FROM or_records
+    `
+    )
+    .run()
+
+  const totalRecordAmount = totalRecordAmountsample
+  console.log('********************************************************')
+  console.log(`Total Amount: ${totalRecordAmount[0]}`)
+  console.log('********************************************************')
+
   shell.beep()
   return {
     processed: totalCopied,
     totalAmount,
+    totalRecordAmount,
     message: `Reconciliation complete. Processed ${pairsProcessed} pairs and copied ${totalCopied} files into ${outputDir}. Total amount: ${totalAmount.toFixed(2)}`
   }
 }

@@ -11,7 +11,7 @@ const api = {
     filters?: { from?: string; to?: string },
     minHighValue?: number,
     maxLowValue?: number
-  ): Promise<{ processed: number; totalAmount: number; message: string }> =>
+  ): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; message: string }> =>
     ipcRenderer.invoke('reconcile', branchPath, targetAmount, outputPath, filters, minHighValue, maxLowValue)
 }
 

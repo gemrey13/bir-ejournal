@@ -40,9 +40,7 @@ export default function Testing() {
       console.log('Scan fromDate:', fromDate)
       console.log('Scan toDate:', toDate)
 
-      setStatus(
-        `Done — scanned: inserted ${result.inserted}, duplicates skipped ${result.skipped}. Reconciled: ${reconcileResult?.processed} files, total amount ${reconcileResult?.totalAmount}`
-      )
+      setStatus(`Done — scanned: inserted ${result.inserted}, duplicates skipped ${result.skipped}. Reconciled: ${reconcileResult?.processed} files, total amount ${reconcileResult?.totalAmount}, TOTAL RECORD AMOUNT: ${reconcileResult?.totalRecordAmount}`)
     } catch (e) {
       setStatus(`Error: ${e}`)
     } finally {
