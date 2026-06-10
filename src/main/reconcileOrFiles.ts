@@ -2,53 +2,11 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import AdmZip from 'adm-zip'
-import { getDb, parseInnerZip, parseMonthYear, isMonthYearInRange, monthYearValue } from './utils'
+import { getDb, parseInnerZip, parseMonthYear, isMonthYearInRange, monthYearValue, extractReceiptBody, replaceReceiptBody, getFileKey, buildOutputFilePath } from './utils'
 import { shell } from 'electron'
+import { OrRecord } from './Main'
 
 const OR_ZIP_PASSWORD = 'admate'
-
-interface OrRecord {
-  id: number
-  branch: string
-  filename: string
-  month: number
-  year: number
-  amount: number | null
-  payment_type: string | null
-  fileContent?: string | null
-}
-
-/**
- * Extracts the receipt body (content between the line starting with + and ========)
- * @param text - The full receipt text
- * @returns The body content or null if not found
- */
-function extractReceiptBody(text: string): string | null {
-  // Match from the first +---+ line to the ===== line (inclusive)
-  const bodyMatch = text.match(/(\+[-]{36,}\+[\s\S]*?={40,})/i)
-  return bodyMatch ? bodyMatch[1] : null
-}
-
-/**
- * Replaces the receipt body with new body content
- * @param text - The full receipt text
- * @param newBody - The new body to insert
- * @returns The modified receipt text
- */
-function replaceReceiptBody(text: string, newBody: string): string {
-  return text.replace(/(\+[-]{36,}\+[\s\S]*?={40,})/i, newBody)
-}
-
-function getFileKey(year: number, month: number, filename: string): string {
-  return `${year}_${month}_${filename.toLowerCase()}`
-}
-
-function buildOutputFilePath(outputDir: string, year: number, month: number, filename: string): string {
-  const monthStr = String(month).padStart(2, '0')
-  const yearDir = path.join(outputDir, String(year), monthStr)
-  fs.mkdirSync(yearDir, { recursive: true })
-  return path.join(yearDir, filename)
-}
 
 function copyAllOrSrFilesFromBranch(
   branchPath: string,

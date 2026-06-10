@@ -2,6 +2,7 @@ import * as path from 'path'
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { MonthYear } from './Main'
+import * as fs from 'fs'
 
 let db: Database.Database
 
@@ -123,4 +124,37 @@ export function parseOrFileMetadata(text: string): { amount: number | null; paym
   }
 
   return { amount, paymentType }
+}
+
+/**
+ * Extracts the receipt body (content between the line starting with + and ========)
+ * @param text - The full receipt text
+ * @returns The body content or null if not found
+ */
+export function extractReceiptBody(text: string): string | null {
+  // Match from the first +---+ line to the ===== line (inclusive)
+  const bodyMatch = text.match(/(\+[-]{36,}\+[\s\S]*?={40,})/i)
+  return bodyMatch ? bodyMatch[1] : null
+}
+
+/**
+ * Replaces the receipt body with new body content
+ * @param text - The full receipt text
+ * @param newBody - The new body to insert
+ * @returns The modified receipt text
+ */
+export function replaceReceiptBody(text: string, newBody: string): string {
+  return text.replace(/(\+[-]{36,}\+[\s\S]*?={40,})/i, newBody)
+}
+
+export function getFileKey(year: number, month: number, filename: string): string {
+  return `${year}_${month}_${filename.toLowerCase()}`
+}
+
+
+export function buildOutputFilePath(outputDir: string, year: number, month: number, filename: string): string {
+  const monthStr = String(month).padStart(2, '0')
+  const yearDir = path.join(outputDir, String(year), monthStr)
+  fs.mkdirSync(yearDir, { recursive: true })
+  return path.join(yearDir, filename)
 }
