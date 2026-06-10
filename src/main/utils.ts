@@ -56,11 +56,6 @@ export function parseMonthYear(value?: string): MonthYear | null {
 }
 
 /**
- * Converts a `MonthYear` object into a single comparable, sortable integer.
- * * @example
- * // returns 202603
- * monthYearValue({ year: 2026, month: 3 })
- * * @param date - The MonthYear object to convert.
  * @returns An integer in the format `YYYYMM`.
  */
 export function monthYearValue(date: MonthYear): number {
@@ -68,10 +63,6 @@ export function monthYearValue(date: MonthYear): number {
 }
 
 /**
- * Validates if a target date falls inclusively within a specified start and end range.
- * * @param date - The target date to check.
- * @param from - The start of the date range (optional; if null, no lower bound is enforced).
- * @param to - The end of the date range (optional; if null, no upper bound is enforced).
  * @returns `true` if the date is within bounds; otherwise `false`.
  */
 export function isMonthYearInRange(date: MonthYear, from: MonthYear | null, to: MonthYear | null): boolean {
@@ -128,7 +119,6 @@ export function parseOrFileMetadata(text: string): { amount: number | null; paym
 
 /**
  * Extracts the receipt body (content between the line starting with + and ========)
- * @param text - The full receipt text
  * @returns The body content or null if not found
  */
 export function extractReceiptBody(text: string): string | null {
@@ -139,8 +129,6 @@ export function extractReceiptBody(text: string): string | null {
 
 /**
  * Replaces the receipt body with new body content
- * @param text - The full receipt text
- * @param newBody - The new body to insert
  * @returns The modified receipt text
  */
 export function replaceReceiptBody(text: string, newBody: string): string {
@@ -150,7 +138,6 @@ export function replaceReceiptBody(text: string, newBody: string): string {
 export function getFileKey(year: number, month: number, filename: string): string {
   return `${year}_${month}_${filename.toLowerCase()}`
 }
-
 
 export function buildOutputFilePath(outputDir: string, year: number, month: number, filename: string): string {
   const monthStr = String(month).padStart(2, '0')
