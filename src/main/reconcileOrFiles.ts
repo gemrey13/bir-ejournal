@@ -2,20 +2,63 @@
 import * as path from 'path'
 import * as os from 'os'
 import AdmZip from 'adm-zip'
+import PDFDocument from 'pdfkit'
 import { getDb, parseInnerZip, parseMonthYear, isMonthYearInRange, monthYearValue, extractReceiptBody, replaceReceiptBody, getFileKey, buildOutputFilePath } from './utils'
 import { shell } from 'electron'
 import { OrRecord } from './main'
 
 const OR_ZIP_PASSWORD = 'admate'
 
-function copyAllOrSrFilesFromBranch(
+async function createPdfBuffer(text: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 32, size: 'A4' })
+    const buffers: Buffer[] = []
+
+    doc.on('data', (chunk) => buffers.push(chunk))
+    doc.on('end', () => resolve(Buffer.concat(buffers)))
+    doc.on('error', reject)
+
+    // Clean up encoding issues: replace special characters with proper line breaks
+    // The Ð character often represents a line break that wasn't properly handled
+    const cleanedText = text
+      .replace(/[ÐðŃ]/g, '\n') // Replace weird symbols with line breaks
+      .replace(/\r\n/g, '\n') // Normalize line endings
+      .trim()
+
+    doc.font('Courier').fontSize(9).text(cleanedText, {
+      lineGap: 1,
+      paragraphGap: 0,
+      continued: false,
+      align: 'left'
+    })
+    doc.end()
+  })
+}
+
+function buildPdfOutputFilePath(outputPdfDir: string, year: number, month: number, filename: string, isSrFile = false): string {
+  const monthStr = String(month).padStart(2, '0')
+  const yearDir = path.join(outputPdfDir, String(year), monthStr)
+  fs.mkdirSync(yearDir, { recursive: true })
+  
+  // For SR files, preserve the SR extension: 088812.SR.pdf
+  // For OR files, just use the base name: 088812.pdf
+  const baseName = path.basename(filename, path.extname(filename))
+  const pdfName = isSrFile ? `${baseName}.SR.pdf` : `${baseName}.pdf`
+  
+  return path.join(yearDir, pdfName)
+}
+
+async function copyAllOrSrFilesFromBranch(
   branchPath: string,
   outputDir: string,
   overrides: Map<string, string>,
   fromDate: ReturnType<typeof parseMonthYear>,
-  toDate: ReturnType<typeof parseMonthYear>
-): number {
+  toDate: ReturnType<typeof parseMonthYear>,
+  enablePdfOutput = false
+): Promise<number> {
   const tmpDir = path.join(os.tmpdir(), `or_copy_${Date.now()}`)
+  const outputPdfDir = enablePdfOutput ? path.join(path.dirname(outputDir), `${path.basename(outputDir)}-pdf`) : undefined
+  if (outputPdfDir) fs.mkdirSync(outputPdfDir, { recursive: true })
   fs.mkdirSync(tmpDir, { recursive: true })
   let copied = 0
 
@@ -58,6 +101,17 @@ function copyAllOrSrFilesFromBranch(
       fs.rmSync(monthDir, { recursive: true, force: true })
     } catch {
       // ignore cleanup failures and continue copying
+    }
+  }
+
+  if (outputPdfDir) {
+    for (const monthDir of monthDirsToDelete) {
+      const pdfMonthDir = path.join(outputPdfDir, path.relative(outputDir, monthDir))
+      try {
+        fs.rmSync(pdfMonthDir, { recursive: true, force: true })
+      } catch {
+        // ignore cleanup failures and continue copying
+      }
     }
   }
 
@@ -109,21 +163,35 @@ function copyAllOrSrFilesFromBranch(
               const filename = path.basename(file.entryName)
               const key = getFileKey(info.year, info.month, filename)
               const outputFile = buildOutputFilePath(outputDir, info.year, info.month, filename)
+              const isOrFile = /\.or$/i.test(filename)
+              const isSrFile = /\.sr$/i.test(filename)
 
-              if (overrides.has(key)) {
-                const buf: Buffer = (file as any).getData(OR_ZIP_PASSWORD)
-                if (!buf) continue
-                if (/\.or$/i.test(filename)) {
-                  const originalExt = path.extname(filename)
-                  const oldFilename = `${path.basename(filename, originalExt)}-OLD${originalExt.toUpperCase()}`
-                  const oldFilePath = path.join(path.dirname(outputFile), oldFilename)
-                  fs.writeFileSync(oldFilePath, buf)
-                }
-                fs.writeFileSync(outputFile, overrides.get(key)!, 'utf8')
+              const buf: Buffer = (file as any).getData(OR_ZIP_PASSWORD)
+              if (!buf) continue
+
+              const outputContent = overrides.has(key) ? overrides.get(key)! : buf.toString('utf8')
+              if (overrides.has(key) && isOrFile) {
+                const originalExt = path.extname(filename)
+                const oldFilename = `${path.basename(filename, originalExt)}-OLD${originalExt.toUpperCase()}`
+                const oldFilePath = path.join(path.dirname(outputFile), oldFilename)
+                fs.writeFileSync(oldFilePath, buf)
+              }
+
+              if (isOrFile) {
+                fs.writeFileSync(outputFile, outputContent, 'utf8')
               } else {
-                const buf: Buffer = (file as any).getData(OR_ZIP_PASSWORD)
-                if (!buf) continue
                 fs.writeFileSync(outputFile, buf)
+              }
+
+              // Generate PDF for both OR and SR files if PDF output is enabled
+              if (outputPdfDir && (isOrFile || isSrFile)) {
+                const pdfFilePath = buildPdfOutputFilePath(outputPdfDir, info.year, info.month, filename, isSrFile)
+                try {
+                  const pdfBuffer = await createPdfBuffer(outputContent)
+                  fs.writeFileSync(pdfFilePath, pdfBuffer)
+                } catch (err) {
+                  console.error(`Error generating PDF for ${filename}:`, err)
+                }
               }
               copied++
             }
@@ -231,7 +299,8 @@ export async function reconcileOrFiles(
   filters?: { from?: string; to?: string },
   minHighValue = 0,
   maxLowValue = Number.POSITIVE_INFINITY,
-  includeSrBill?: boolean
+  includeSrBill?: boolean,
+  enablePdfOutput = false
 ): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; pairsProcessed: number }> {
   console.log(`Starting reconciliation with target: ${targetAmount}, minHighValue: ${minHighValue}, maxLowValue: ${maxLowValue}`)
 
@@ -401,7 +470,7 @@ export async function reconcileOrFiles(
     lowIdx = (lowIdx + 1) % lowRecords.length
   }
 
-  const totalCopied = copyAllOrSrFilesFromBranch(branchPath, outputDir, modifiedFiles, fromDate, toDate)
+  const totalCopied = await copyAllOrSrFilesFromBranch(branchPath, outputDir, modifiedFiles, fromDate, toDate, enablePdfOutput)
 
   const totalRecordAmountsample = db
     .prepare(

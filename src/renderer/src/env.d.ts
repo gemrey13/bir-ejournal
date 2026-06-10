@@ -11,7 +11,8 @@ interface Window {
       filters?: { from?: string; to?: string },
       minHighValue?: number,
       maxLowValue?: number,
-      includeSrBill?: boolean
+      includeSrBill?: boolean,
+      enablePdfOutput?: boolean
     ): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; pairsProcessed: number }>
   }
 }

@@ -9,6 +9,7 @@ export default function Testing() {
   const [maxLowValue, setMaxLowValue] = useState(500)
   const [outputPath, setOutputPath] = useState('C:\\Users\\Gem\\Desktop\\Giligans\\Output')
   const [includeSrBill, setIncludeSrBill] = useState(false)
+  const [enablePdfOutput, setEnablePdfOutput] = useState(false)
 
   const [status, setStatus] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -36,7 +37,8 @@ export default function Testing() {
         },
         minHigh,
         maxLow,
-        includeSrBill
+        includeSrBill,
+        enablePdfOutput
       )
 
       console.log('Scan fromDate:', fromDate)
@@ -210,6 +212,16 @@ export default function Testing() {
               style={{ cursor: 'pointer' }}
             />
             Include Sr Bill in Reconciliation
+          </label>
+
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={enablePdfOutput}
+              onChange={(e) => setEnablePdfOutput(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            Generate PDF version of OR files
           </label>
         </div>
       </div>
