@@ -134,15 +134,27 @@ function copyAllOrSrFilesFromBranch(
   return copied
 }
 
-/**
- * Extracts a specific OR file from the zip structure
- */
-function extractOrFileContent(branchPath: string, year: number, filename: string): string | null {
-  try {
-    const yearPath = path.join(branchPath, String(year))
-    if (!fs.existsSync(yearPath)) return null
+function extractOrFileContentsMap(branchPath: string, records: OrRecord[], fromDate: ReturnType<typeof parseMonthYear>, toDate: ReturnType<typeof parseMonthYear>): Map<string, string> {
+  const neededKeys = new Set<string>()
+  for (const record of records) {
+    neededKeys.add(getFileKey(record.year, record.month, record.filename))
+  }
 
-    // Find outer zip files
+  const contents = new Map<string, string>()
+  if (neededKeys.size === 0) return contents
+
+  const yearSet = new Set<number>(records.map((record) => record.year))
+
+  for (const yearFolder of fs.readdirSync(branchPath)) {
+    if (!/^\d{4}$/.test(yearFolder)) continue
+    const yearNumber = parseInt(yearFolder, 10)
+    if (!yearSet.has(yearNumber)) continue
+    if (fromDate && yearNumber < fromDate.year) continue
+    if (toDate && yearNumber > toDate.year) continue
+
+    const yearPath = path.join(branchPath, yearFolder)
+    if (!fs.statSync(yearPath).isDirectory()) continue
+
     for (const outerName of fs.readdirSync(yearPath)) {
       if (!/\.zip$/i.test(outerName)) continue
 
@@ -153,46 +165,45 @@ function extractOrFileContent(branchPath: string, year: number, filename: string
         continue
       }
 
-      // Find inner zip files
       for (const entry of outerZip.getEntries()) {
         if (entry.isDirectory) continue
         if (!/^OR\d{6}\.zip$/i.test(path.basename(entry.entryName))) continue
 
-        const tmpZip = path.join(os.tmpdir(), `or_temp_${Date.now()}_${Math.random()}.zip`)
+        const info = parseInnerZip(path.basename(entry.entryName))
+        if (!info) continue
+        if (!isMonthYearInRange(info, fromDate, toDate)) continue
+
+        let innerZip: AdmZip
         try {
           const outerBuf: Buffer = (entry as any).getData(OR_ZIP_PASSWORD)
-          fs.writeFileSync(tmpZip, outerBuf)
+          innerZip = new AdmZip(outerBuf)
+        } catch {
+          continue
+        }
 
-          let innerZip: AdmZip
+        for (const file of innerZip.getEntries()) {
+          if (file.isDirectory) continue
+          if (!/\.or$/i.test(file.entryName)) continue
+
+          const filename = path.basename(file.entryName)
+          const key = getFileKey(info.year, info.month, filename)
+          if (!neededKeys.has(key) || contents.has(key)) continue
+
           try {
-            innerZip = new AdmZip(tmpZip)
+            const fileBuf: Buffer = (file as any).getData(OR_ZIP_PASSWORD)
+            if (!fileBuf) continue
+            contents.set(key, fileBuf.toString('utf8'))
           } catch {
             continue
           }
 
-          // Find the specific file
-          for (const file of innerZip.getEntries()) {
-            if (file.isDirectory) continue
-            if (path.basename(file.entryName).toLowerCase() !== filename.toLowerCase()) continue
-            if (!/\.or$/i.test(file.entryName)) continue
-
-            const fileBuf: Buffer = (file as any).getData(OR_ZIP_PASSWORD)
-            if (!fileBuf) continue
-
-            return fileBuf.toString('utf8')
-          }
-        } finally {
-          try {
-            fs.unlinkSync(tmpZip)
-          } catch {}
+          if (contents.size === neededKeys.size) return contents
         }
       }
     }
-  } catch (error) {
-    console.error(`Error extracting ${filename} from ${branchPath}:`, error)
   }
 
-  return null
+  return contents
 }
 
 /**
@@ -225,41 +236,26 @@ export async function reconcileOrFiles(
   }
 
   const db = getDb()
+  const hasDateFilter = Boolean(fromDate || toDate)
+  const dateFilterClause = hasDateFilter ? 'AND (year * 100 + month) BETWEEN @fromValue AND @toValue' : ''
+  const queryParams = {
+    fromValue: fromDate ? monthYearValue(fromDate) : 0,
+    toValue: toDate ? monthYearValue(toDate) : 999999
+  }
 
-  const cashRecords = db
+  const allRecords = db
     .prepare(
       `
       SELECT id, branch, filename, month, year, amount, payment_type
       FROM or_records
-      WHERE payment_type = 'Cash'
+      WHERE payment_type IN ('Cash', 'Non Cash', 'Sr Bill')
+      ${dateFilterClause}
       ORDER BY amount DESC NULLS LAST
     `
     )
-    .all() as OrRecord[]
+    .all(queryParams) as OrRecord[]
 
-  const nonCashRecords = db
-    .prepare(
-      `
-      SELECT id, branch, filename, month, year, amount, payment_type
-      FROM or_records
-      WHERE payment_type = 'Non Cash'
-      ORDER BY amount DESC NULLS LAST
-    `
-    )
-    .all() as OrRecord[]
-
-  const srBillRecords = db
-    .prepare(
-      `
-      SELECT id, branch, filename, month, year, amount, payment_type
-      FROM or_records
-      WHERE payment_type = 'Sr Bill'
-      ORDER BY amount DESC NULLS LAST
-    `
-    )
-    .all() as OrRecord[]
-
-  const totalRecords = cashRecords.length + nonCashRecords.length + srBillRecords.length
+  const totalRecords = allRecords.length
   if (totalRecords < 2) {
     return {
       processed: 0,
@@ -270,26 +266,21 @@ export async function reconcileOrFiles(
   }
 
   console.log(`Extracting ${totalRecords} receipt files...`)
-  const enrichedRecordsByType: Record<string, OrRecord[]> = {
-    Cash: cashRecords.map((record) => ({
-      ...record,
-      fileContent: extractOrFileContent(branchPath, record.year, record.filename)
-    })),
-    'Non Cash': nonCashRecords.map((record) => ({
-      ...record,
-      fileContent: extractOrFileContent(branchPath, record.year, record.filename)
-    })),
-    'Sr Bill': srBillRecords.map((record) => ({
-      ...record,
-      fileContent: extractOrFileContent(branchPath, record.year, record.filename)
-    }))
-  }
+  const start = Date.now()
+  const fileContentMap = extractOrFileContentsMap(branchPath, allRecords, fromDate, toDate)
+  const enrichedRecords = allRecords.map((record) => ({
+    ...record,
+    fileContent: fileContentMap.get(getFileKey(record.year, record.month, record.filename)) ?? null
+  }))
+  const end = Date.now()
+  const delta = end - start
+
+  console.log(`Extracting ${totalRecords} receipt files...`)
 
   const outputDir = path.join(outputBasePath, path.basename(branchPath))
   fs.mkdirSync(outputDir, { recursive: true })
 
-  const allRecords: OrRecord[] = Object.values(enrichedRecordsByType).flat()
-  const availableRecords = allRecords.filter((record) => record.amount !== null)
+  const availableRecords = enrichedRecords.filter((record) => record.amount !== null)
 
   const lowRecords = [...availableRecords].sort((a, b) => (a.amount! as number) - (b.amount! as number))
   const highCashNonCashRecords = [...availableRecords]
@@ -412,7 +403,7 @@ export async function reconcileOrFiles(
   console.log('********************************************************')
   console.log(`Total Amount: ${totalRecordAmount[0]}`)
   console.log('********************************************************')
-
+  console.log(`Process extraction finished. Delta: ${delta}ms`)
   shell.beep()
   return {
     processed: totalCopied,
