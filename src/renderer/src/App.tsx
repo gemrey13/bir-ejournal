@@ -4,7 +4,9 @@ interface ScanResult {
   inserted: number
   processed: number
   pairsProcessed: number
-  totalAmount: string // Pre-formatted currency string
+  totalAmount: string 
+  difference: string
+  targetAmount: string
 }
 
 export default function App() {
@@ -66,12 +68,26 @@ export default function App() {
         currency: 'PHP'
       }).format(reconcileResult?.totalRecordAmount || 0)
 
+
+      const formattedDifference = new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP'
+      }).format(reconcileResult?.totalRecordAmount - targetAmount || 0)
+
+      const formattedTargetAmount = new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP'
+      }).format(targetAmount || 0)
+
+
       // Set the structured result state instead of a raw text string
       setResult({
         inserted: scanResultData?.inserted ?? 0,
         processed: reconcileResult?.processed ?? 0,
         pairsProcessed: reconcileResult?.pairsProcessed ?? 0,
-        totalAmount: formattedAmount
+        totalAmount: formattedAmount,
+        difference: formattedDifference,
+        targetAmount: formattedTargetAmount
       })
     } catch (e: any) {
       setError(e?.message || String(e))
@@ -229,6 +245,12 @@ export default function App() {
 
               <span className="text-slate-500">OR Modified:</span>
               <span className="font-medium text-right sm:text-left">{result.pairsProcessed}</span>
+
+              <span className="text-slate-500">Target Amount:</span>
+              <span className="font-medium text-right sm:text-left">{result.targetAmount}</span>
+
+              <span className="text-slate-500">Difference:</span>
+              <span className="font-medium text-right sm:text-left">{result.difference}</span>
 
               <div className="col-span-2 my-1 border-t border-slate-200" />
 
