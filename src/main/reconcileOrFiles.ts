@@ -19,6 +19,48 @@ function copyAllOrSrFilesFromBranch(
   fs.mkdirSync(tmpDir, { recursive: true })
   let copied = 0
 
+  // Remove any existing month output folders for this branch and date range
+  const monthDirsToDelete = new Set<string>()
+  for (const yearFolder of fs.readdirSync(branchPath)) {
+    if (!/^\d{4}$/.test(yearFolder)) continue
+    const yearNumber = parseInt(yearFolder, 10)
+    if (fromDate && yearNumber < fromDate.year) continue
+    if (toDate && yearNumber > toDate.year) continue
+    const yearPath = path.join(branchPath, yearFolder)
+    if (!fs.statSync(yearPath).isDirectory()) continue
+
+    for (const outerName of fs.readdirSync(yearPath)) {
+      if (!/\.zip$/i.test(outerName)) continue
+
+      let outerZip: AdmZip
+      try {
+        outerZip = new AdmZip(path.join(yearPath, outerName))
+      } catch {
+        continue
+      }
+
+      for (const entry of outerZip.getEntries()) {
+        if (entry.isDirectory) continue
+        if (!/^OR\d{6}\.zip$/i.test(path.basename(entry.entryName))) continue
+
+        const info = parseInnerZip(path.basename(entry.entryName))
+        if (!info) continue
+        if (!isMonthYearInRange(info, fromDate, toDate)) continue
+
+        const monthDir = path.join(outputDir, yearFolder, String(info.month).padStart(2, '0'))
+        monthDirsToDelete.add(monthDir)
+      }
+    }
+  }
+
+  for (const monthDir of monthDirsToDelete) {
+    try {
+      fs.rmSync(monthDir, { recursive: true, force: true })
+    } catch {
+      // ignore cleanup failures and continue copying
+    }
+  }
+
   try {
     for (const yearFolder of fs.readdirSync(branchPath)) {
       if (!/^\d{4}$/.test(yearFolder)) continue
