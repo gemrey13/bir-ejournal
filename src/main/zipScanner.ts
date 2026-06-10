@@ -2,8 +2,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import AdmZip from 'adm-zip'
-import { ScanFilters } from './Main'
 import { getDb, isMonthYearInRange, monthYearValue, parseInnerZip, parseMonthYear, parseOrFileMetadata } from './utils'
+import { ScanFilters } from './main'
 
 const OR_ZIP_PASSWORD = 'admate'
 

@@ -1,8 +1,8 @@
 import * as path from 'path'
 import Database from 'better-sqlite3'
 import { app } from 'electron'
-import { MonthYear } from './Main'
 import * as fs from 'fs'
+import { MonthYear } from './main'
 
 let db: Database.Database
 

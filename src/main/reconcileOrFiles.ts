@@ -4,7 +4,7 @@ import * as os from 'os'
 import AdmZip from 'adm-zip'
 import { getDb, parseInnerZip, parseMonthYear, isMonthYearInRange, monthYearValue, extractReceiptBody, replaceReceiptBody, getFileKey, buildOutputFilePath } from './utils'
 import { shell } from 'electron'
-import { OrRecord } from './Main'
+import { OrRecord } from './main'
 
 const OR_ZIP_PASSWORD = 'admate'
 
