@@ -10,9 +10,10 @@ const api = {
     outputPath: string,
     filters?: { from?: string; to?: string },
     minHighValue?: number,
-    maxLowValue?: number
+    maxLowValue?: number,
+    includeSrBill?: boolean
   ): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; message: string }> =>
-    ipcRenderer.invoke('reconcile', branchPath, targetAmount, outputPath, filters, minHighValue, maxLowValue)
+    ipcRenderer.invoke('reconcile', branchPath, targetAmount, outputPath, filters, minHighValue, maxLowValue, includeSrBill)
 }
 
 if (process.contextIsolated) {

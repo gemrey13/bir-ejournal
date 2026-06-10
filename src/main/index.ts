@@ -65,7 +65,7 @@ ipcMain.handle(
     filters?: { from?: string; to?: string },
     minHighValue = 0,
     maxLowValue = Number.POSITIVE_INFINITY,
-    includeSrBill = false
+    includeSrBill = true
   ) => {
     return reconcileOrFiles(branchPath, targetAmount, outputPath, filters, minHighValue, maxLowValue, includeSrBill)
   }

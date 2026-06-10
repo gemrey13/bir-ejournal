@@ -1,4 +1,4 @@
-import * as fs from 'fs'
+﻿import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import AdmZip from 'adm-zip'
@@ -181,7 +181,7 @@ export async function reconcileOrFiles(
   filters?: { from?: string; to?: string },
   minHighValue = 0,
   maxLowValue = Number.POSITIVE_INFINITY,
-  includeSrBill = false
+  includeSrBill?: boolean
 ): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; message: string }> {
   console.log(`Starting reconciliation with target: ${targetAmount}, minHighValue: ${minHighValue}, maxLowValue: ${maxLowValue}`)
 
