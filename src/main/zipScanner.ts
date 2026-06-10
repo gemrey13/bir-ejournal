@@ -7,7 +7,7 @@ import { ScanFilters } from './main'
 
 const OR_ZIP_PASSWORD = 'admate'
 
-export async function scanAndSave(branchPath: string, filters?: ScanFilters): Promise<{ inserted: number; skipped: number }> {
+export async function scanAndSave(branchPath: string, filters?: ScanFilters): Promise<{ inserted: number }> {
   const fromDate = parseMonthYear(filters?.from)
   const toDate = parseMonthYear(filters?.to)
 
@@ -29,7 +29,6 @@ export async function scanAndSave(branchPath: string, filters?: ScanFilters): Pr
 
   const branch = path.basename(branchPath)
   let inserted = 0
-  let skipped = 0
 
   const tmpDir = path.join(os.tmpdir(), `or_scan_${Date.now()}`)
   fs.mkdirSync(tmpDir, { recursive: true })
@@ -100,7 +99,6 @@ export async function scanAndSave(branchPath: string, filters?: ScanFilters): Pr
                 payment_type
               })
               if (r.changes > 0) inserted++
-              else skipped++
             }
           })
           insertBatch()
@@ -113,5 +111,5 @@ export async function scanAndSave(branchPath: string, filters?: ScanFilters): Pr
     fs.rmSync(tmpDir, { recursive: true, force: true })
   }
 
-  return { inserted, skipped }
+  return { inserted }
 }

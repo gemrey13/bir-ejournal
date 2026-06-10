@@ -69,6 +69,14 @@ function copyAllOrSrFilesFromBranch(
               const outputFile = buildOutputFilePath(outputDir, info.year, info.month, filename)
 
               if (overrides.has(key)) {
+                const buf: Buffer = (file as any).getData(OR_ZIP_PASSWORD)
+                if (!buf) continue
+                if (/\.or$/i.test(filename)) {
+                  const originalExt = path.extname(filename)
+                  const oldFilename = `${path.basename(filename, originalExt)}-OLD${originalExt.toUpperCase()}`
+                  const oldFilePath = path.join(path.dirname(outputFile), oldFilename)
+                  fs.writeFileSync(oldFilePath, buf)
+                }
                 fs.writeFileSync(outputFile, overrides.get(key)!, 'utf8')
               } else {
                 const buf: Buffer = (file as any).getData(OR_ZIP_PASSWORD)
@@ -182,7 +190,7 @@ export async function reconcileOrFiles(
   minHighValue = 0,
   maxLowValue = Number.POSITIVE_INFINITY,
   includeSrBill?: boolean
-): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; message: string }> {
+): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; pairsProcessed: number }> {
   console.log(`Starting reconciliation with target: ${targetAmount}, minHighValue: ${minHighValue}, maxLowValue: ${maxLowValue}`)
 
   const fromDate = parseMonthYear(filters?.from)
@@ -225,7 +233,7 @@ export async function reconcileOrFiles(
       processed: 0,
       totalAmount: 0,
       totalRecordAmount: 0,
-      message: 'Not enough records to reconcile'
+      pairsProcessed: 0,
     }
   }
 
@@ -376,6 +384,6 @@ export async function reconcileOrFiles(
     processed: totalCopied,
     totalAmount,
     totalRecordAmount,
-    message: `Reconciliation complete. Processed ${pairsProcessed} pairs and copied ${totalCopied} files into ${outputDir}. Total amount: ${totalAmount.toFixed(2)}`
+    pairsProcessed,
   }
 }

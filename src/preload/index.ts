@@ -3,7 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 const api = {
   selectDirectory: (): Promise<string | null> => ipcRenderer.invoke('dialog:openDirectory'),
-  scan: (rootPath: string, filters?: { from?: string; to?: string }): Promise<{ inserted: number; skipped: number }> => ipcRenderer.invoke('scan', rootPath, filters),
+  scan: (rootPath: string, filters?: { from?: string; to?: string }): Promise<{ inserted: number }> => ipcRenderer.invoke('scan', rootPath, filters),
   reconcile: (
     branchPath: string,
     targetAmount: number,
@@ -12,7 +12,7 @@ const api = {
     minHighValue?: number,
     maxLowValue?: number,
     includeSrBill?: boolean
-  ): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; message: string }> =>
+  ): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; pairsProcessed: number }> =>
     ipcRenderer.invoke('reconcile', branchPath, targetAmount, outputPath, filters, minHighValue, maxLowValue, includeSrBill)
 }
 

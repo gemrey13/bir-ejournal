@@ -18,7 +18,7 @@ export default function Testing() {
     setLoading(true)
     setStatus(null)
     try {
-      const result = await (window as any).api.scan(rootPath.trim(), {
+      const result = await window.api?.scan(rootPath.trim(), {
         from: fromDate || undefined,
         to: toDate || undefined
       })
@@ -42,7 +42,7 @@ export default function Testing() {
       console.log('Scan fromDate:', fromDate)
       console.log('Scan toDate:', toDate)
 
-      setStatus(`Done — scanned: inserted ${result.inserted}, duplicates skipped ${result.skipped}. Reconciled: ${reconcileResult?.processed} files, total amount ${reconcileResult?.totalAmount}, TOTAL RECORD AMOUNT: ${reconcileResult?.totalRecordAmount}`)
+      setStatus(`Done — scanned: inserted ${result?.inserted}. Reconciled: ${reconcileResult?.processed} files, total amount ${reconcileResult?.totalAmount}, TOTAL RECORD AMOUNT: ${reconcileResult?.totalRecordAmount}, TOTAL PAIRS PROCESSED: ${reconcileResult?.pairsProcessed}`)
     } catch (e) {
       setStatus(`Error: ${e}`)
     } finally {
