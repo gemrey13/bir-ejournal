@@ -3,7 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { scanAndSave } from './zipScanner'
-import { reconcileWithTarget } from './reconcileOrFiles'
+import { reconcileOrFiles } from './reconcileOrFiles'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -64,9 +64,10 @@ ipcMain.handle(
     outputPath: string,
     filters?: { from?: string; to?: string },
     minHighValue = 0,
-    maxLowValue = Number.POSITIVE_INFINITY
+    maxLowValue = Number.POSITIVE_INFINITY,
+    includeSrBill = false
   ) => {
-    return reconcileWithTarget(branchPath, targetAmount, outputPath, filters, minHighValue, maxLowValue)
+    return reconcileOrFiles(branchPath, targetAmount, outputPath, filters, minHighValue, maxLowValue, includeSrBill)
   }
 )
 

@@ -10,7 +10,8 @@ interface Window {
       outputPath: string,
       filters?: { from?: string; to?: string },
       minHighValue?: number,
-      maxLowValue?: number
+      maxLowValue?: number,
+      includeSrBill?: boolean
     ): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; message: string }>
   }
 }

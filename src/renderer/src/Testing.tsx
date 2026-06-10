@@ -8,6 +8,7 @@ export default function Testing() {
   const [minHighValue, setMinHighValue] = useState(1000)
   const [maxLowValue, setMaxLowValue] = useState(500)
   const [outputPath, setOutputPath] = useState('C:\\Users\\Gem\\Desktop\\Giligans\\Output')
+  const [includeSrBill, setIncludeSrBill] = useState(false)
 
   const [status, setStatus] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -34,7 +35,8 @@ export default function Testing() {
           to: toDate || undefined
         },
         minHigh,
-        maxLow
+        maxLow,
+        includeSrBill
       )
 
       console.log('Scan fromDate:', fromDate)
@@ -197,6 +199,18 @@ export default function Testing() {
               fontFamily: 'inherit'
             }}
           />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={includeSrBill}
+              onChange={(e) => setIncludeSrBill(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            Include Sr Bill in Reconciliation
+          </label>
         </div>
       </div>
 

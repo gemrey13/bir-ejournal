@@ -211,6 +211,10 @@ function extractOrFileContentsMap(branchPath: string, records: OrRecord[], fromD
  * @param branchPath - Path to the branch directory containing year/zip structure
  * @param targetAmount - Target total amount (will stop at closest value without going below)
  * @param outputBasePath - Base path where reconciled files will be saved
+ * @param filters - Optional date filters
+ * @param minHighValue - Minimum value for high records
+ * @param maxLowValue - Maximum value for low records
+ * @param includeSrBill - Whether to include Sr Bill records in reconciliation (default: true)
  */
 export async function reconcileOrFiles(
   branchPath: string,
@@ -218,7 +222,8 @@ export async function reconcileOrFiles(
   outputBasePath: string,
   filters?: { from?: string; to?: string },
   minHighValue = 0,
-  maxLowValue = Number.POSITIVE_INFINITY
+  maxLowValue = Number.POSITIVE_INFINITY,
+  includeSrBill = false
 ): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; message: string }> {
   console.log(`Starting reconciliation with target: ${targetAmount}, minHighValue: ${minHighValue}, maxLowValue: ${maxLowValue}`)
 
@@ -238,6 +243,7 @@ export async function reconcileOrFiles(
   const db = getDb()
   const hasDateFilter = Boolean(fromDate || toDate)
   const dateFilterClause = hasDateFilter ? 'AND (year * 100 + month) BETWEEN @fromValue AND @toValue' : ''
+  const paymentTypeFilter = includeSrBill ? "('Cash', 'Non Cash', 'Sr Bill')" : "('Cash', 'Non Cash')"
   const queryParams = {
     fromValue: fromDate ? monthYearValue(fromDate) : 0,
     toValue: toDate ? monthYearValue(toDate) : 999999
@@ -248,7 +254,7 @@ export async function reconcileOrFiles(
       `
       SELECT id, branch, filename, month, year, amount, payment_type
       FROM or_records
-      WHERE payment_type IN ('Cash', 'Non Cash', 'Sr Bill')
+      WHERE payment_type IN ${paymentTypeFilter}
       ${dateFilterClause}
       ORDER BY amount DESC NULLS LAST
     `
@@ -266,34 +272,32 @@ export async function reconcileOrFiles(
   }
 
   console.log(`Extracting ${totalRecords} receipt files...`)
-  const start = Date.now()
   const fileContentMap = extractOrFileContentsMap(branchPath, allRecords, fromDate, toDate)
   const enrichedRecords = allRecords.map((record) => ({
     ...record,
     fileContent: fileContentMap.get(getFileKey(record.year, record.month, record.filename)) ?? null
   }))
-  const end = Date.now()
-  const delta = end - start
-
-  console.log(`Extracting ${totalRecords} receipt files...`)
 
   const outputDir = path.join(outputBasePath, path.basename(branchPath))
   fs.mkdirSync(outputDir, { recursive: true })
 
   const availableRecords = enrichedRecords.filter((record) => record.amount !== null)
 
-  const lowRecords = [...availableRecords].sort((a, b) => (a.amount! as number) - (b.amount! as number))
+  // Exclude Sr Bill from low records if includeSrBill is false
+  const lowRecordsCandidates = includeSrBill ? availableRecords : availableRecords.filter((record) => record.payment_type !== 'Sr Bill')
+
+  const lowRecords = [...lowRecordsCandidates].sort((a, b) => (a.amount! as number) - (b.amount! as number))
   const highCashNonCashRecords = [...availableRecords]
     .filter((record) => record.payment_type === 'Cash' || record.payment_type === 'Non Cash')
     .sort((a, b) => (b.amount! as number) - (a.amount! as number))
-  const highSrBillRecords = [...availableRecords].filter((record) => record.payment_type === 'Sr Bill').sort((a, b) => (b.amount! as number) - (a.amount! as number))
+  const highSrBillRecords = includeSrBill ? [...availableRecords].filter((record) => record.payment_type === 'Sr Bill').sort((a, b) => (b.amount! as number) - (a.amount! as number)) : []
 
   let totalAmount = 0
   let pairsProcessed = 0
   const modifiedFiles = new Map<string, string>()
 
   const usedHigh = new Set<number>()
-  let highStage = 0 // 0 = Cash/Non Cash, 1 = Sr Bill
+  let highStage = 0 // 0 = Cash/Non Cash, 1 = Sr Bill (only if includeSrBill is true)
   let highIdx = 0
   let lowIdx = 0
 
@@ -322,7 +326,7 @@ export async function reconcileOrFiles(
     }
 
     if (highIdx >= currentHighRecords.length) {
-      if (highStage === 0 && highSrBillRecords.length > 0) {
+      if (highStage === 0 && includeSrBill && highSrBillRecords.length > 0) {
         highStage = 1
         highIdx = 0
         continue
@@ -382,7 +386,7 @@ export async function reconcileOrFiles(
     usedHigh.add(highestRecord.id)
 
     console.log(
-      `Pair ${pairsProcessed}: ${highStage === 0 ? 'Cash/Non Cash' : 'Sr Bill'} highest(${highestRecord.id}) amount=${highestAmount} paired with lowest(${lowestRecord.id}) amount=${lowestAmount}. Total: ${totalAmount}`
+      `Pair ${pairsProcessed}: ${highStage === 0 ? 'Cash/Non Cash' : includeSrBill ? 'Sr Bill' : ''} highest(${highestRecord.id}) amount=${highestAmount} paired with lowest(${lowestRecord.id}) amount=${lowestAmount}. Total: ${totalAmount}`
     )
 
     highIdx++
@@ -394,16 +398,15 @@ export async function reconcileOrFiles(
   const totalRecordAmountsample = db
     .prepare(
       `
-      SELECT sum(amount) FROM or_records
+    SELECT sum(amount) AS total FROM or_records
     `
     )
-    .run()
+    .get() as any
 
-  const totalRecordAmount = totalRecordAmountsample
+  const totalRecordAmount = totalRecordAmountsample ? totalRecordAmountsample.total : 0
   console.log('********************************************************')
-  console.log(`Total Amount: ${totalRecordAmount[0]}`)
+  console.log(`Total Amount: ${totalRecordAmount}`)
   console.log('********************************************************')
-  console.log(`Process extraction finished. Delta: ${delta}ms`)
   shell.beep()
   return {
     processed: totalCopied,
@@ -411,18 +414,4 @@ export async function reconcileOrFiles(
     totalRecordAmount,
     message: `Reconciliation complete. Processed ${pairsProcessed} pairs and copied ${totalCopied} files into ${outputDir}. Total amount: ${totalAmount.toFixed(2)}`
   }
-}
-
-/**
- * Reconciles with configurable target
- */
-export function reconcileWithTarget(
-  branchPath: string,
-  targetAmount: number,
-  outputBasePath: string,
-  filters?: { from?: string; to?: string },
-  minHighValue = 0,
-  maxLowValue = Number.POSITIVE_INFINITY
-): Promise<{ processed: number; totalAmount: number; message: string }> {
-  return reconcileOrFiles(branchPath, targetAmount, outputBasePath, filters, minHighValue, maxLowValue)
 }
