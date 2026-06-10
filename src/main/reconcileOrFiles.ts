@@ -361,6 +361,12 @@ export async function reconcileOrFiles(
     )
     .get() as any
 
+  try {
+    db.prepare(`DELETE FROM or_records`).run()
+  } catch (err) {
+    console.error(`Failed to delete records:`, err)
+  }
+
   const totalRecordAmount = totalRecordAmountsample ? totalRecordAmountsample.total : 0
   console.log('********************************************************')
   console.log(`Total Amount: ${totalRecordAmount}`)
