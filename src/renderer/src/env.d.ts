@@ -3,7 +3,7 @@
 interface Window {
   api?: {
     selectDirectory(): Promise<string | null>
-    scan(rootPath: string, filters?: { from?: string; to?: string }): Promise<{ inserted: number; }>
+    scan(rootPath: string, filters?: { from?: string; to?: string }): Promise<{ inserted: number }>
     reconcile(
       branchPath: string,
       targetAmount: number,
