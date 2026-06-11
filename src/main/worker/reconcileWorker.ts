@@ -15,17 +15,7 @@ const { branchPath, targetAmount, outputBasePath, filters, minHighValue, maxLowV
 
 async function run() {
   try {
-    const result = await reconcileOrFiles(
-      branchPath,
-      targetAmount,
-      outputBasePath,
-      filters,
-      minHighValue,
-      maxLowValue,
-      includeSrBill,
-      enablePdfOutput,
-      dbPath  
-    )
+    const result = await reconcileOrFiles(branchPath, targetAmount, outputBasePath, filters, minHighValue, maxLowValue, includeSrBill, enablePdfOutput, dbPath)
     parentPort?.postMessage({ result })
   } catch (err: any) {
     parentPort?.postMessage({ error: err?.message || String(err) })
