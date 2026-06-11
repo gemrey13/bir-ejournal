@@ -4,7 +4,7 @@ interface ScanResult {
   inserted: number
   processed: number
   pairsProcessed: number
-  totalAmount: string 
+  totalAmount: string
   difference: string
   targetAmount: string
 }
@@ -13,8 +13,8 @@ export default function App() {
   const [rootPath, setRootPath] = useState('C:\\Users\\Gem\\Desktop\\Giligans\\ARA')
   const [fromDate, setFromDate] = useState('2025-01') // Format: "YYYY-MM"
   const [toDate, setToDate] = useState('2025-01') // Format: "YYYY-MM"
-  const [targetAmount, setTargetAmount] = useState(456791.42)
-  const [minHighValue, setMinHighValue] = useState(635)
+  const [targetAmount, setTargetAmount] = useState(0)
+  const [minHighValue, setMinHighValue] = useState(700)
   const [maxLowValue, setMaxLowValue] = useState(100)
   const [outputPath, setOutputPath] = useState('C:\\Users\\Gem\\Desktop\\Giligans\\Output')
   const [includeSrBill, setIncludeSrBill] = useState(false)
@@ -68,7 +68,6 @@ export default function App() {
         currency: 'PHP'
       }).format(reconcileResult?.totalRecordAmount || 0)
 
-
       const formattedDifference = new Intl.NumberFormat('en-PH', {
         style: 'currency',
         currency: 'PHP'
@@ -78,7 +77,6 @@ export default function App() {
         style: 'currency',
         currency: 'PHP'
       }).format(targetAmount || 0)
-
 
       // Set the structured result state instead of a raw text string
       setResult({
