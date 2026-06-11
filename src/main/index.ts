@@ -3,7 +3,7 @@ import path, { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { scanAndSave } from './zipScanner'
-import { reconcileOrFiles } from './reconcileOrFiles'
+import createReconcileWorker from './worker/reconcileWorker?nodeWorker'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -11,7 +11,7 @@ function createWindow(): void {
     height: 670,
     show: false,
     autoHideMenuBar: true,
-    icon: path.join(__dirname, "../../resources/icon.ico"),
+    icon: path.join(__dirname, '../../resources/icon.ico'),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -69,7 +69,33 @@ ipcMain.handle(
     includeSrBill = true,
     enablePdfOutput = false
   ) => {
-    return reconcileOrFiles(branchPath, targetAmount, outputPath, filters, minHighValue, maxLowValue, includeSrBill, enablePdfOutput)
+    const dbPath = path.join(app.getPath('userData'), 'orfiles.db')
+
+    return new Promise((resolve, reject) => {
+      const worker = createReconcileWorker({
+        workerData: {
+          branchPath,
+          targetAmount,
+          outputBasePath: outputPath,
+          filters,
+          minHighValue,
+          maxLowValue,
+          includeSrBill,
+          enablePdfOutput,
+          dbPath
+        }
+      })
+
+      worker.on('message', (msg) => {
+        if ('result' in msg) resolve(msg.result)
+        if ('error' in msg) reject(new Error(msg.error))
+      })
+
+      worker.on('error', (err) => reject(err))
+      worker.on('exit', (code) => {
+        if (code !== 0) reject(new Error(`Reconcile worker exited with code ${code}`))
+      })
+    })
   }
 )
 

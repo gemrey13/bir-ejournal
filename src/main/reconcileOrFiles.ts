@@ -4,8 +4,8 @@ import * as os from 'os'
 import AdmZip from 'adm-zip'
 import PDFDocument from 'pdfkit'
 import { getDb, parseInnerZip, parseMonthYear, isMonthYearInRange, monthYearValue, extractReceiptBody, replaceReceiptBody, getFileKey, buildOutputFilePath } from './utils'
-import { shell } from 'electron'
 import { OrRecord } from './main'
+import Database from 'better-sqlite3'
 
 const OR_ZIP_PASSWORD = 'admate'
 
@@ -39,12 +39,12 @@ function buildPdfOutputFilePath(outputPdfDir: string, year: number, month: numbe
   const monthStr = String(month).padStart(2, '0')
   const yearDir = path.join(outputPdfDir, String(year), monthStr)
   fs.mkdirSync(yearDir, { recursive: true })
-  
+
   // For SR files, preserve the SR extension: 088812.SR.pdf
   // For OR files, just use the base name: 088812.pdf
   const baseName = path.basename(filename, path.extname(filename))
   const pdfName = isSrFile ? `${baseName}.SR.pdf` : `${baseName}.pdf`
-  
+
   return path.join(yearDir, pdfName)
 }
 
@@ -300,7 +300,8 @@ export async function reconcileOrFiles(
   minHighValue = 0,
   maxLowValue = Number.POSITIVE_INFINITY,
   includeSrBill?: boolean,
-  enablePdfOutput = false
+  enablePdfOutput = false,
+  dbPath?: string
 ): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; pairsProcessed: number }> {
   console.log(`Starting reconciliation with target: ${targetAmount}, minHighValue: ${minHighValue}, maxLowValue: ${maxLowValue}`)
 
@@ -317,7 +318,8 @@ export async function reconcileOrFiles(
     throw new Error('The "from" date must be earlier than or equal to the "to" date.')
   }
 
-  const db = getDb()
+  const db = dbPath ? new Database(dbPath) : getDb()
+
   const hasDateFilter = Boolean(fromDate || toDate)
   const dateFilterClause = hasDateFilter ? 'AND (year * 100 + month) BETWEEN @fromValue AND @toValue' : ''
   const paymentTypeFilter = includeSrBill ? "('Cash', 'Non Cash', 'Sr Bill')" : "('Cash', 'Non Cash')"
@@ -344,7 +346,7 @@ export async function reconcileOrFiles(
       processed: 0,
       totalAmount: 0,
       totalRecordAmount: 0,
-      pairsProcessed: 0,
+      pairsProcessed: 0
     }
   }
 
@@ -490,11 +492,10 @@ export async function reconcileOrFiles(
   console.log('********************************************************')
   console.log(`Total Amount: ${totalRecordAmount}`)
   console.log('********************************************************')
-  shell.beep()
   return {
     processed: totalCopied,
     totalAmount,
     totalRecordAmount,
-    pairsProcessed,
+    pairsProcessed
   }
 }

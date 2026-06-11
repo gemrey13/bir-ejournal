@@ -11,11 +11,11 @@ interface ScanResult {
 
 export default function App() {
   const [rootPath, setRootPath] = useState('C:\\Users\\Gem\\Desktop\\Giligans\\ARA')
-  const [fromDate, setFromDate] = useState('2025-01') // Format: "YYYY-MM"
-  const [toDate, setToDate] = useState('2025-01') // Format: "YYYY-MM"
-  const [targetAmount, setTargetAmount] = useState(0)
-  const [minHighValue, setMinHighValue] = useState(700)
-  const [maxLowValue, setMaxLowValue] = useState(100)
+  const [fromDate, setFromDate] = useState('2025-06') // Format: "YYYY-MM"
+  const [toDate, setToDate] = useState('2025-06') // Format: "YYYY-MM"
+  const [targetAmount, setTargetAmount] = useState(456791.42)
+  const [minHighValue, setMinHighValue] = useState(620)
+  const [maxLowValue, setMaxLowValue] = useState(75)
   const [outputPath, setOutputPath] = useState('C:\\Users\\Gem\\Desktop\\Giligans\\Output')
   const [includeSrBill, setIncludeSrBill] = useState(false)
   const [enablePdfOutput, setEnablePdfOutput] = useState(false)
