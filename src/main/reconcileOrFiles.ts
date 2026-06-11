@@ -291,6 +291,8 @@ function extractOrFileContentsMap(branchPath: string, records: OrRecord[], fromD
  * @param minHighValue - Minimum value for high records
  * @param maxLowValue - Maximum value for low records
  * @param includeSrBill - Whether to include Sr Bill records in reconciliation (default: true)
+ * @param enablePdfOutput - Whether to enable PDF output (default: false)
+ * @param dbPath - Path to the database file (default: uses default database)
  */
 export async function reconcileOrFiles(
   branchPath: string,
