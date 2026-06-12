@@ -118,12 +118,12 @@ export function parseOrFileMetadata(text: string): { amount: number | null; paym
 }
 
 /**
- * Extracts the receipt body (content between the line starting with + and ========)
+ * Extracts the receipt body (content between the line starting with + and the ending dashed divider)
  * @returns The body content or null if not found
  */
 export function extractReceiptBody(text: string): string | null {
-  // Match from the first +---+ line to the ===== line (inclusive)
-  const bodyMatch = text.match(/(\+[-]{36,}\+[\s\S]*?={40,})/i)
+  // Match from the first +---+ line to the final dashed footer line (inclusive)
+  const bodyMatch = text.match(/(\+[-]{36,}\+[\s\S]*?^[-]{40,}\s*$)/im)
   return bodyMatch ? bodyMatch[1] : null
 }
 
@@ -132,7 +132,7 @@ export function extractReceiptBody(text: string): string | null {
  * @returns The modified receipt text
  */
 export function replaceReceiptBody(text: string, newBody: string): string {
-  return text.replace(/(\+[-]{36,}\+[\s\S]*?={40,})/i, newBody)
+  return text.replace(/(\+[-]{36,}\+[\s\S]*?^[-]{40,}\s*$)/im, newBody)
 }
 
 export function getFileKey(year: number, month: number, filename: string): string {
