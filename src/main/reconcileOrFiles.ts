@@ -301,6 +301,7 @@ export async function reconcileOrFiles(
   filters?: { from?: string; to?: string },
   minHighValue = 0,
   maxLowValue = Number.POSITIVE_INFINITY,
+  minLowValue = Number.NEGATIVE_INFINITY,
   includeSrBill?: boolean,
   enablePdfOutput = false,
   dbPath?: string
@@ -389,7 +390,7 @@ export async function reconcileOrFiles(
 
     while (attempts < lowRecords.length) {
       const record = lowRecords[idx]
-      if (record.amount !== null && record.amount <= maxLowValue && record.id !== highestId) {
+      if (record.amount !== null && record.amount <= maxLowValue && record.amount >= minLowValue && record.id !== highestId) {
         return idx
       }
       idx = (idx + 1) % lowRecords.length
@@ -432,7 +433,7 @@ export async function reconcileOrFiles(
       highIdx++
       continue
     }
-    if (lowestAmount > maxLowValue) {
+    if (lowestAmount > maxLowValue || lowestAmount < minLowValue) {
       lowIdx = (lowIdx + 1) % lowRecords.length
       continue
     }
@@ -467,7 +468,7 @@ export async function reconcileOrFiles(
     usedHigh.add(highestRecord.id)
 
     console.log(
-      `Pair ${pairsProcessed}: ${highStage === 0 ? 'Cash/Non Cash' : includeSrBill ? 'Sr Bill' : ''} highest(${highestRecord.id}) amount=${highestAmount} paired with lowest(${lowestRecord.id}) amount=${lowestAmount}. Total: ${totalAmount}`
+      `Pair ${pairsProcessed}: ${highStage === 0 ? 'Cash/Non Cash' : includeSrBill ? 'Sr Bill' : ''} highest(${highestRecord.filename}) amount=${highestAmount} paired with lowest(${lowestRecord.filename}) amount=${lowestAmount}. Total: ${totalAmount}`
     )
 
     highIdx++

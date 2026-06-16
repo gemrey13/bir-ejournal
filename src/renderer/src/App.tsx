@@ -15,7 +15,8 @@ export default function App() {
   const [toDate, setToDate] = useState('2025-06') // Format: "YYYY-MM"
   const [targetAmount, setTargetAmount] = useState(456791.42)
   const [minHighValue, setMinHighValue] = useState(620)
-  const [maxLowValue, setMaxLowValue] = useState(75)
+  const [maxLowValue, setMaxLowValue] = useState(200)
+  const [minLowValue, setMinLowValue] = useState(100)
   const [outputPath, setOutputPath] = useState('C:\\Users\\Gem\\Desktop\\Giligans\\Output')
   const [includeSrBill, setIncludeSrBill] = useState(false)
   const [enablePdfOutput, setEnablePdfOutput] = useState(false)
@@ -48,6 +49,7 @@ export default function App() {
 
       const minHigh = minHighValue ? Number(minHighValue) : 0
       const maxLow = maxLowValue ? Number(maxLowValue) : Number.POSITIVE_INFINITY
+      const minLow = minLowValue ? Number(minLowValue) : Number.NEGATIVE_INFINITY
 
       const reconcileResult = await window.api?.reconcile(
         rootPath.trim(),
@@ -59,6 +61,7 @@ export default function App() {
         },
         minHigh,
         maxLow,
+        minLow,
         includeSrBill,
         enablePdfOutput
       )
@@ -166,7 +169,7 @@ export default function App() {
           </label>
         </div>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <label className="text-sm text-slate-600">
             Target Amount
             <input
@@ -178,7 +181,7 @@ export default function App() {
             />
           </label>
 
-          <label>
+          <label className='text-sm text-slate-600'>
             Min High Value
             <input
               type="number"
@@ -189,7 +192,9 @@ export default function App() {
               className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
             />
           </label>
+        </div>
 
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <label className="text-sm text-slate-600">
             Max Low Value
             <input
@@ -198,6 +203,18 @@ export default function App() {
               value={maxLowValue}
               placeholder="No limit"
               onChange={(e) => setMaxLowValue(Number(e.target.value))}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+            />
+          </label>
+
+          <label className="text-sm text-slate-600">
+            Min Low Value
+            <input
+              type="number"
+              min={0}
+              value={minLowValue}
+              placeholder="No limit"
+              onChange={(e) => setMinLowValue(Number(e.target.value))}
               className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
             />
           </label>

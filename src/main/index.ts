@@ -66,6 +66,7 @@ ipcMain.handle(
     filters?: { from?: string; to?: string },
     minHighValue = 0,
     maxLowValue = Number.POSITIVE_INFINITY,
+    minLowValue = Number.NEGATIVE_INFINITY,
     includeSrBill = true,
     enablePdfOutput = false
   ) => {
@@ -80,6 +81,7 @@ ipcMain.handle(
           filters,
           minHighValue,
           maxLowValue,
+          minLowValue,
           includeSrBill,
           enablePdfOutput,
           dbPath

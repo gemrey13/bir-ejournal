@@ -13,6 +13,7 @@ declare global {
         filters?: { from?: string; to?: string },
         minHighValue?: number,
         maxLowValue?: number,
+        minLowValue?: number,
         includeSrBill?: boolean,
         enablePdfOutput?: boolean
       ): Promise<{ processed: number; totalAmount: number; totalRecordAmount: any; pairsProcessed: number }>
